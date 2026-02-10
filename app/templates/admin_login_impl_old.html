@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}MusicBox · Login{% endblock %}
+
+{% block content %}
+  <div class="section">
+
+    <div class="card" style="padding:18px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <div>
+          <div style="font-size:34px; font-weight:900; letter-spacing:.02em;">SIGN IN</div>
+          <div class="muted" style="margin-top:6px;">
+            Role-based access for analysis, submission, and system management.
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:center;">
+          <a class="btn" href="{{ url_for('viewer') }}">← Back to Viewer</a>
+          <a class="btn primary" href="{{ url_for('analyst') }}">Go to Analyst</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="spacer" style="height:14px;"></div>
+
+    <div style="display:grid; grid-template-columns: 1.25fr 1fr; gap:14px; align-items:stretch;">
+
+      <!-- Left: form -->
+      <div class="card" style="padding:18px;">
+        <div class="section-title" style="margin:0 0 12px 0;">Account Login</div>
+
+        <form method="post" action="{{ url_for('admin_login_post') if 'admin_login_post' in globals() else '#' }}">
+          <div class="field">
+            <label>Email</label>
+            <input class="input" name="email" type="email" placeholder="admin@musicbox.local" required>
+          </div>
+
+          <div class="field">
+            <label>Password</label>
+            <input class="input" name="password" type="password" placeholder="••••••••" required>
+          </div>
+
+          <div class="field">
+            <label>Role</label>
+            <select class="input" name="role">
+              <option value="admin">admin</option>
+              <option value="analyst">analyst</option>
+            </select>
+          </div>
+
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;">
+            <button class="btn primary" type="submit">Sign In</button>
+            <a class="btn" href="{{ url_for('admin') }}">Skip (demo)</a>
+          </div>
+
+          <div class="muted" style="margin-top:12px; font-size:12px; line-height:1.5;">
+            Demo users (from schema seed):<br>
+            <span style="font-family:var(--mono);">admin@musicbox.local / demo</span><br>
+            <span style="font-family:var(--mono);">analyst@musicbox.local / demo</span>
+          </div>
+        </form>
+      </div>
+
+      <!-- Right: role cards -->
+      <div class="card" style="padding:18px;">
+        <div class="section-title" style="margin:0 0 12px 0;">Role Capabilities</div>
+
+        <div class="card" style="padding:14px; border-radius:18px; background: rgba(16,16,16,.55); margin-bottom:12px;">
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <div style="font-weight:900;">Analyst</div>
+            <span class="pill active">analysis</span>
+          </div>
+          <div class="muted" style="margin-top:8px; font-size:12px; line-height:1.55;">
+            • View genre-level radar + summary<br>
+            • Track genre mix over time<br>
+            • Analyze audio-feature trends (incl. duration)
+          </div>
+          <div style="margin-top:10px;">
+            <a class="btn primary" href="{{ url_for('analyst') }}">Open Analyst Dashboard</a>
+          </div>
+        </div>
+
+        <div class="card" style="padding:14px; border-radius:18px; background: rgba(16,16,16,.55);">
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <div style="font-weight:900;">Admin</div>
+            <span class="pill active">manage</span>
+          </div>
+          <div class="muted" style="margin-top:8px; font-size:12px; line-height:1.55;">
+            • Submit new artists, albums, and tracks (pending)<br>
+            • Review pending items (approve / reject)<br>
+            • Manage users (create / role change / active status)
+          </div>
+          <div style="margin-top:10px;">
+            <a class="btn primary" href="{{ url_for('admin') }}">Open Admin Panel</a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+{% endblock %}

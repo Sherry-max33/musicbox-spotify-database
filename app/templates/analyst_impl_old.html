@@ -1,0 +1,404 @@
+{# app/templates/analyst.html
+  ✅ Analyst Page (Mock-aligned)
+  - STYLE MAP: Genre filter (All / Big-7)
+  - Radar Chart: AVG features by selected genre
+  - Summary: danceability/energy/valence/acousticness/tempo/loudness + avg duration (mm:ss)
+  - STYLE EVOLUTION:
+      Left: Genre Mix Over Time (Big-7 share by decade, stacked area)
+      Right: Audio Feature Trends (tabs: danceability/energy/valence/acousticness/tempo/loudness/duration)
+  - Data contract from Flask:
+      genres: ["Pop","Rock",...]
+      genre: selected genre string or ""
+      radar_data: dict with keys:
+          danceability, energy, valence, acousticness, tempo, loudness, duration_ms
+          (optional: instrumentalness,liveness,speechiness if you want)
+      summary: dict same keys as above
+      genre_mix: list of rows:
+          [{"decade":"1980s","Pop":0.3,"Rock":0.2,...}, ...]  // shares 0~1
+      trend_data: list of rows:
+          [{"decade":"1980s","danceability":0.6,"energy":0.55,"valence":0.5,"acousticness":0.3,"tempo":118.2,"loudness":-7.1,"duration_ms":225000}, ...]
+      active_feature: one of:
+          "danceability","energy","valence","acousticness","tempo","loudness","duration"
+#}
+
+{% extends "base.html" %}
+{% block title %}MusicBox · Analyst{% endblock %}
+
+{% block head_extra %}
+ <!-- Chart.js -->
+ <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="section">
+
+ <!-- =========================
+      HEADER / FILTERS
+      ========================= -->
+ <div class="card" style="padding:18px;">
+   <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap;">
+     <div>
+       <div style="font-size:34px; font-weight:900; letter-spacing:.02em;">STYLE MAP</div>
+       <div class="muted" style="margin-top:6px;">
+         Explore audio features by genre, review summary averages, and track style evolution over decades.
+       </div>
+     </div>
+
+     <!-- ✅ Mock-aligned: only GENRE + Apply -->
+     <form method="get" action="{{ url_for('analyst') }}" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+       <div class="pill" style="padding:10px 12px;">GENRE</div>
+       <select class="input" name="genre" style="border-radius:999px; padding:10px 12px; min-width:220px;">
+         <option value="">All</option>
+         {% for g in genres %}
+           <option value="{{ g }}" {% if genre==g %}selected{% endif %}>{{ g }}</option>
+         {% endfor %}
+       </select>
+
+       <!-- keep active_feature in query when applying genre -->
+       <input type="hidden" name="feature" value="{{ active_feature|default('danceability') }}"/>
+
+       <button class="btn primary" type="submit">Apply</button>
+       <a class="btn" href="{{ url_for('analyst') }}">Reset</a>
+     </form>
+   </div>
+
+   <!-- Quick notes -->
+   <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+     <span class="pill">Radar + Summary = AVG by genre</span>
+     <span class="pill">Genre Mix = Big-7 share by decade</span>
+     <span class="pill">Trends = AVG(feature) by decade</span>
+   </div>
+ </div>
+
+ <div class="spacer" style="height:14px;"></div>
+
+ <!-- =========================
+      ROW 1: RADAR + SUMMARY
+      ========================= -->
+ <div style="display:grid; grid-template-columns: 1.25fr 1fr; gap:14px;">
+
+   <!-- Radar -->
+   <div class="card" style="padding:14px;">
+     <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 6px 10px;">
+       <div class="section-title" style="margin:0;">Radar Chart</div>
+       <div class="muted" style="font-size:12px;">
+         {{ genre if genre else "All" }}
+       </div>
+     </div>
+
+     <div class="card" style="padding:12px; border-radius:18px; background: rgba(16,16,16,.55);">
+       <canvas id="radarChart" height="220"></canvas>
+     </div>
+
+     <div class="muted" style="margin-top:10px; font-size:12px; line-height:1.5;">
+       Dimensions follow your demo metrics (danceability, energy, valence, acousticness, tempo).
+     </div>
+   </div>
+
+   <!-- Summary -->
+   <div class="card" style="padding:14px;">
+     <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 6px 10px;">
+       <div class="section-title" style="margin:0;">Summary</div>
+       <div class="muted" style="font-size:12px;">Feature Averages</div>
+     </div>
+
+     <div class="grid2">
+
+       <!-- danceability -->
+       <div class="card" style="padding:14px; border-radius:18px; background: rgba(16,16,16,.55);">
+         <div class="muted" style="font-size:11px; letter-spacing:.12em; text-transform:uppercase;">danceability</div>
+         <div style="margin-top:8px; font-size:22px; font-weight:900; font-family:var(--mono);">
+           {{ summary.danceability if summary and summary.danceability is not none else "—" }}
+         </div>
+       </div>
+
+       <!-- energy -->
+       <div class="card" style="padding:14px; border-radius:18px; background: rgba(16,16,16,.55);">
+         <div class="muted" style="font-size:11px; letter-spacing:.12em; text-transform:uppercase;">energy</div>
+         <div style="margin-top:8px; font-size:22px; font-weight:900; font-family:var(--mono);">
+           {{ summary.energy if summary and summary.energy is not none else "—" }}
+         </div>
+       </div>
+
+       <!-- valence -->
+       <div class="card" style="padding:14px; border-radius:18px; background: rgba(16,16,16,.55);">
+         <div class="muted" style="font-size:11px; letter-spacing:.12em; text-transform:uppercase;">valence</div>
+         <div style="margin-top:8px; font-size:22px; font-weight:900; font-family:var(--mono);">
+           {{ summary.valence if summary and summary.valence is not none else "—" }}
+         </div>
+       </div>
+
+       <!-- acousticness -->
+       <div class="card" style="padding:14px; border-radius:18px; background: rgba(16,16,16,.55);">
+         <div class="muted" style="font-size:11px; letter-spacing:.12em; text-transform:uppercase;">acousticness</div>
+         <div style="margin-top:8px; font-size:22px; font-weight:900; font-family:var(--mono);">
+           {{ summary.acousticness if summary and summary.acousticness is not none else "—" }}
+         </div>
+       </div>
+
+       <!-- tempo -->
+       <div class="card" style="padding:14px; border-radius:18px; background: rgba(16,16,16,.55);">
+         <div class="muted" style="font-size:11px; letter-spacing:.12em; text-transform:uppercase;">tempo</div>
+         <div style="margin-top:8px; font-size:22px; font-weight:900; color:var(--accent); font-family:var(--mono);">
+           {{ summary.tempo if summary and summary.tempo is not none else "—" }}
+         </div>
+       </div>
+
+       <!-- loudness -->
+       <div class="card" style="padding:14px; border-radius:18px; background: rgba(16,16,16,.55);">
+         <div class="muted" style="font-size:11px; letter-spacing:.12em; text-transform:uppercase;">loudness</div>
+         <div style="margin-top:8px; font-size:22px; font-weight:900; font-family:var(--mono);">
+           {{ summary.loudness if summary and summary.loudness is not none else "—" }}
+         </div>
+       </div>
+
+       <!-- duration -->
+       <div class="card" style="padding:14px; border-radius:18px; background: rgba(16,16,16,.55); grid-column: 1 / -1;">
+         <div class="muted" style="font-size:11px; letter-spacing:.12em; text-transform:uppercase;">avg duration</div>
+         <div style="margin-top:8px; font-size:26px; font-weight:900; color:var(--accent); font-family:var(--mono);">
+           <span id="summaryDurationText">—</span>
+         </div>
+       </div>
+
+     </div>
+
+     <div style="margin-top:12px;" class="muted">
+       Data source: <code style="font-family:var(--mono);">audio_features</code> + <code style="font-family:var(--mono);">tracks</code> + genre labels.
+     </div>
+   </div>
+ </div>
+
+ <div class="spacer" style="height:14px;"></div>
+
+ <!-- =========================
+      STYLE EVOLUTION (2 cards)
+      ========================= -->
+ <div class="card" style="padding:14px;">
+   <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 6px 10px;">
+     <div class="section-title" style="margin:0;">STYLE EVOLUTION</div>
+     <div class="muted" style="font-size:12px;">
+       {{ genre if genre else "All" }}
+     </div>
+   </div>
+
+   <div style="display:grid; grid-template-columns: 1.15fr 1fr; gap:14px;">
+
+     <!-- Left: Genre Mix Over Time -->
+     <div class="card" style="padding:14px; border-radius:18px; background: rgba(16,16,16,.35);">
+       <div style="display:flex; align-items:center; justify-content:space-between;">
+         <div>
+           <div class="pill" style="display:inline-block; margin-bottom:8px;">GENRE</div>
+           <div style="font-size:22px; font-weight:900;">Genre Mix Over Time</div>
+         </div>
+       </div>
+
+       <div class="card" style="margin-top:12px; padding:12px; border-radius:18px; background: rgba(16,16,16,.55);">
+         <canvas id="genreMixChart" height="170"></canvas>
+       </div>
+
+       <div class="muted" style="margin-top:10px; font-size:12px;">
+         Big-7 shares per decade (stacked).
+       </div>
+     </div>
+
+     <!-- Right: Audio Feature Trends -->
+     <div class="card" style="padding:14px; border-radius:18px; background: rgba(16,16,16,.35);">
+       <div>
+         <div class="pill" style="display:inline-block; margin-bottom:8px;">TRENDS</div>
+         <div style="font-size:22px; font-weight:900;">Audio Features</div>
+       </div>
+
+       <!-- ✅ Tabs (mock-aligned) -->
+       <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+         {% set f = active_feature|default('danceability') %}
+         {% for tab in ['danceability','energy','valence','acousticness','tempo','loudness','duration'] %}
+           <a
+             class="pill"
+             href="{{ url_for('analyst', genre=genre, feature=tab) }}"
+             style="cursor:pointer; padding:10px 12px; border-radius:999px;
+                    {% if f==tab %}border-color: var(--accent); color: var(--accent); background: rgba(0,255,178,.08);{% endif %}">
+             {{ tab }}
+           </a>
+         {% endfor %}
+       </div>
+
+       <div class="card" style="margin-top:12px; padding:12px; border-radius:18px; background: rgba(16,16,16,.55);">
+         <canvas id="featureTrendChart" height="170"></canvas>
+       </div>
+
+       <div class="muted" style="margin-top:10px; font-size:12px;">
+         Output = AVG(feature) by decade (filtered by selected genre).
+       </div>
+     </div>
+
+   </div>
+ </div>
+
+</div>
+
+<!-- =========================
+    CHART SCRIPTS
+    ========================= -->
+<script>
+ // -------- Backend -> Frontend bridge --------
+ // If backend doesn't provide these, we fallback to demo data for UI preview.
+ const radarData = {{ radar_data|default(None) | tojson }};
+ const summaryData = {{ summary|default(None) | tojson }};
+ const genreMix = {{ genre_mix|default(None) | tojson }};
+ const trendData = {{ trend_data|default(None) | tojson }};
+ const activeFeature = "{{ active_feature|default('danceability') }}";
+
+ // -------- Helpers --------
+ function pad2(n){ return String(n).padStart(2,'0'); }
+
+ function msToMMSS(ms){
+   if(ms === null || ms === undefined) return "—";
+   const v = Number(ms);
+   if(!Number.isFinite(v) || v <= 0) return "—";
+   const totalSec = Math.round(v/1000);
+   const m = Math.floor(totalSec/60);
+   const s = totalSec % 60;
+   return `${m}:${pad2(s)}`;
+ }
+
+ function demoRadar(){
+   return { danceability:0.72, energy:0.68, valence:0.51, acousticness:0.18, tempo:121.4 };
+ }
+ function demoSummary(){
+   return { danceability:0.72, energy:0.68, valence:0.51, acousticness:0.18, tempo:121.4, loudness:-6.9, duration_ms:208000 };
+ }
+ function demoGenreMix(){
+   return [
+     {decade:"1980s", Pop:0.30, Rock:0.28, "Hip-Hop":0.10, "R&B":0.12, Jazz:0.08, Classical:0.06, Electronic:0.06},
+     {decade:"1990s", Pop:0.28, Rock:0.22, "Hip-Hop":0.14, "R&B":0.15, Jazz:0.07, Classical:0.05, Electronic:0.09},
+     {decade:"2000s", Pop:0.26, Rock:0.18, "Hip-Hop":0.18, "R&B":0.14, Jazz:0.06, Classical:0.04, Electronic:0.14},
+     {decade:"2010s", Pop:0.25, Rock:0.14, "Hip-Hop":0.22, "R&B":0.15, Jazz:0.05, Classical:0.03, Electronic:0.16},
+     {decade:"2020s", Pop:0.24, Rock:0.12, "Hip-Hop":0.24, "R&B":0.16, Jazz:0.05, Classical:0.03, Electronic:0.16},
+   ];
+ }
+ function demoTrend(){
+   return [
+     {decade:"1980s", danceability:0.58, energy:0.55, valence:0.52, acousticness:0.34, tempo:118.0, loudness:-7.5, duration_ms:230000},
+     {decade:"1990s", danceability:0.60, energy:0.58, valence:0.50, acousticness:0.32, tempo:121.0, loudness:-7.1, duration_ms:225000},
+     {decade:"2000s", danceability:0.62, energy:0.60, valence:0.48, acousticness:0.30, tempo:124.0, loudness:-6.8, duration_ms:220000},
+     {decade:"2010s", danceability:0.64, energy:0.62, valence:0.46, acousticness:0.28, tempo:126.0, loudness:-6.6, duration_ms:215000},
+     {decade:"2020s", danceability:0.65, energy:0.63, valence:0.45, acousticness:0.27, tempo:128.0, loudness:-6.4, duration_ms:210000},
+   ];
+ }
+
+ const R = (radarData && Object.keys(radarData).length) ? radarData : demoRadar();
+ const S = (summaryData && Object.keys(summaryData).length) ? summaryData : demoSummary();
+ const GM = (Array.isArray(genreMix) && genreMix.length) ? genreMix : demoGenreMix();
+ const TD = (Array.isArray(trendData) && trendData.length) ? trendData : demoTrend();
+
+ // ✅ Summary duration text (mm:ss)
+ document.getElementById("summaryDurationText").textContent = msToMMSS(S.duration_ms);
+
+ // -------- Radar Chart (mock-ish) --------
+ // Keep radar simple: 5 dimensions (as mock visual)
+ const radarLabels = ["danceability","energy","valence","acousticness","tempo"];
+ const radarVals = radarLabels.map(k => Number(R[k] ?? 0));
+
+ new Chart(document.getElementById("radarChart"), {
+   type: "radar",
+   data: {
+     labels: radarLabels,
+     datasets: [{
+       label: "AVG features",
+       data: radarVals,
+       borderWidth: 2,
+       pointRadius: 2,
+       fill: true
+     }]
+   },
+   options: {
+     responsive: true,
+     scales: {
+       r: {
+         suggestedMin: 0,
+         suggestedMax: (radarLabels.includes("tempo") ? undefined : 1),
+         grid: { color: "rgba(255,255,255,0.08)" },
+         angleLines: { color: "rgba(255,255,255,0.10)" },
+         pointLabels: { color: "rgba(234,234,234,0.85)", font: { size: 12 } },
+         ticks: { display: false }
+       }
+     },
+     plugins: {
+       legend: { labels: { color: "rgba(234,234,234,0.85)" } }
+     }
+   }
+ });
+
+ // -------- Genre Mix Over Time (stacked area) --------
+ const decades = GM.map(x => x.decade);
+ const big7 = ["Pop","Rock","Hip-Hop","R&B","Jazz","Classical","Electronic"];
+
+ new Chart(document.getElementById("genreMixChart"), {
+   type: "line",
+   data: {
+     labels: decades,
+     datasets: big7.map(g => ({
+       label: g,
+       data: GM.map(x => Number(x[g] ?? 0)),
+       borderWidth: 2,
+       pointRadius: 0,
+       fill: true,
+       stack: "mix"
+     }))
+   },
+   options: {
+     responsive: true,
+     plugins: { legend: { labels: { color:"rgba(234,234,234,0.85)" } } },
+     elements: { line: { tension: 0.25 } },
+     scales: {
+       x: { ticks: { color:"rgba(234,234,234,0.70)" }, grid: { color:"rgba(255,255,255,0.06)" } },
+       y: {
+         stacked: true,
+         suggestedMin: 0,
+         suggestedMax: 1,
+         ticks: { color:"rgba(234,234,234,0.70)" },
+         grid: { color:"rgba(255,255,255,0.06)" }
+       }
+     }
+   }
+ });
+
+ // -------- Feature Trend (tabs: single series) --------
+ const tdDecades = TD.map(x => x.decade);
+
+ function yValue(row, feature){
+   if(feature === "duration") return Number(row.duration_ms ?? 0) / 1000.0; // seconds
+   return Number(row[feature] ?? 0);
+ }
+
+ function yLabel(feature){
+   if(feature === "duration") return "avg duration (sec)";
+   return `avg ${feature}`;
+ }
+
+ const line = new Chart(document.getElementById("featureTrendChart"), {
+   type: "line",
+   data: {
+     labels: tdDecades,
+     datasets: [{
+       label: yLabel(activeFeature),
+       data: TD.map(r => yValue(r, activeFeature)),
+       borderWidth: 3,
+       pointRadius: 1,
+       fill: false
+     }]
+   },
+   options: {
+     responsive: true,
+     plugins: { legend: { labels: { color:"rgba(234,234,234,0.85)" } } },
+     elements: { line: { tension: 0.25 } },
+     scales: {
+       x: { ticks: { color:"rgba(234,234,234,0.70)" }, grid: { color:"rgba(255,255,255,0.06)" } },
+       y: { ticks: { color:"rgba(234,234,234,0.70)" }, grid: { color:"rgba(255,255,255,0.06)" } }
+     }
+   }
+ });
+</script>
+{% endblock %}
+
+

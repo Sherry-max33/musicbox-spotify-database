@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MusicBox – Wireframe Demo</title>
+  <style>
+    :root{
+      --bg:#0b0b0b; --panel:#121212; --card:#1c1c1c; --text:#eaeaea;
+      --muted:#a7a7a7; --border:#2b2b2b; --accent:#00f5a0; --radius:18px;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:var(--sans); color:var(--text);
+      background: radial-gradient(1200px 600px at 50% -200px, rgba(0,245,160,.25), transparent 60%), var(--bg);
+    }
+    .wrap{max-width:1120px; margin:0 auto; padding:22px 18px 60px}
+
+    /* Topbar & Logo */
+    .topbar{ display:flex; align-items:center; gap:14px; padding:14px; border:1px solid var(--border); border-radius:var(--radius); background:rgba(18,18,18,.78); backdrop-filter: blur(10px); }
+    .logo{display:flex; align-items:center; gap:10px; min-width:180px; font-weight:800;}
+    .logo-badge{ width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg,var(--accent),rgba(0,245,160,.25)); display:grid; place-items:center; color:#000; font-weight:900; }
+    .search{ flex:1; display:flex; align-items:center; gap:10px; background:rgba(255,255,255,.04); border:1px solid var(--border); border-radius:999px; padding:10px 14px; }
+    .search input{ width:100%; border:0; outline:0; background:transparent; color:var(--text); font-size:14px; }
+
+    /* Section & Chart */
+    .section{ margin-top:18px; border:1px solid var(--border); border-radius:var(--radius); background:rgba(18,18,18,.72); box-shadow: var(--shadow); overflow:hidden; }
+    .section-title{ display:flex; align-items:center; justify-content:space-between; padding:16px 18px; background: linear-gradient(90deg, rgba(0,245,160,.88), rgba(0,245,160,.12)); color:#000; font-weight:900; }
+    
+    .controls{ display:flex; align-items:center; gap:12px; padding:14px 18px; border-top:1px solid var(--border); background:rgba(18,18,18,.75); }
+    .tabs{display:flex; gap:10px;}
+    .tab{ border:1px solid var(--border); background:rgba(255,255,255,.03); color:var(--text); padding:10px 14px; border-radius:999px; cursor:pointer; font-weight:700; text-decoration: none; font-size: 13px; }
+    .tab.active{ border-color:rgba(0,245,160,.5); box-shadow:0 0 0 3px rgba(0,245,160,.12) inset; }
+
+    /* 卡片行样式 */
+    .table{ width:100%; border-collapse:separate; border-spacing:0 10px; padding: 0 18px 18px; }
+    .row{ background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+    .row td{ padding:10px; vertical-align:middle; }
+    .rank{ width:56px; font-family:var(--mono); color:var(--accent); font-weight:900; font-size:16px; text-align: center; }
+    .cover{ width:54px; height:54px; border-radius:14px; overflow:hidden; border:1px solid rgba(255,255,255,.08); }
+    .cover img{ width:100%; height:100%; object-fit:cover; }
+    .main{ font-weight:850; font-size: 15px; }
+    .sub{ color:var(--muted); font-size:13px; margin-top:2px; }
+    
+    .btn-open{ background:var(--accent); color:#000; border:0; padding:8px 16px; border-radius:10px; font-weight:800; cursor:pointer; font-size:12px; }
+    audio { height: 30px; width: 140px; filter: invert(100%) hue-rotate(90deg); opacity: 0.8; }
+    
+    .genrebtn{ text-align:left; border:1px solid var(--border); background:rgba(255,255,255,.03); color:var(--text); padding:11px 12px; border-radius:14px; text-decoration: none; display: block; margin-bottom: 8px; font-weight: 800; }
+    .genrebtn.active{ background:rgba(0,245,160,.12); border-color:var(--accent); color:var(--accent); }
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="logo"><div class="logo-badge">♪</div><div style="font-weight:800; font-size:14px;">MusicBox</div></div>
+    <div class="search"><input id="searchInput" placeholder="Search..." value="{{ q }}"></div>
+  </div>
+
+  <section class="section">
+    <div class="section-title">
+      <div style="font-size:34px">TOP {{ chart|upper }}S</div>
+      <div style="font-family:var(--mono);font-size:13px">VIEW CHART</div>
+    </div>
+
+    <div class="controls">
+      <div class="tabs">
+        <a href="{{ url_for('viewer', chart='song', decade=decade, genre=genre, q=q) }}" class="tab {{ 'active' if chart == 'song' else '' }}">Song Top Chart</a>
+        <a href="{{ url_for('viewer', chart='artist', decade=decade, genre=genre, q=q) }}" class="tab {{ 'active' if chart == 'artist' else '' }}">Artist Top Chart</a>
+        <a href="{{ url_for('viewer', chart='album', decade=decade, genre=genre, q=q) }}" class="tab {{ 'active' if chart == 'album' else '' }}">Album Top Chart</a>
+      </div>
+      <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+        <select id="topDecade" style="background:#121212; color:#fff; border:1px solid var(--border); padding:8px; border-radius:10px;">
+          {% for d in decades %}<option value="{{ d }}" {{ 'selected' if d == decade else '' }}>{{ d }}</option>{% endfor %}
+        </select>
+        <button class="btn-open" id="topApply">Apply</button>
+      </div>
+    </div>
+
+    <table class="table">
+      <tbody>
+        {% for row in rows %}
+        <tr class="row">
+          <td class="rank">#{{ loop.index }}</td>
+          <td><div class="cover"><img src="{{ row[5] or row[4] or 'https://via.placeholder.com/150' }}"></div></td>
+          
+          {% if chart == 'song' %}
+            <td><div class="main">{{ row[1] }}</div><div class="sub">{{ row[2] }}</div></td>
+            <td>{% if row[6] %}<audio src="{{ row[6] }}" controls></audio>{% endif %}</td>
+          {% elif chart == 'artist' %}
+            <td><div class="main">{{ row[1] }}</div><div class="sub">Popularity: {{ row[3] }}</div></td>
+            <td><div class="main" style="color:var(--accent); font-size:14px">{{ row[2] }}</div><div class="sub">Top Track</div></td>
+            <td>{% if row[5] %}<audio src="{{ row[5] }}" controls></audio>{% endif %}</td>
+          {% else %}
+            <td><div class="main">{{ row[1] }}</div><div class="sub">{{ row[2] }}</div></td>
+            <td style="text-align:right"><button class="btn-open">OPEN</button></td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="explore" style="display:grid; grid-template-columns:240px 1fr; gap:14px; padding:20px; border-top:1px solid var(--border);">
+      <div class="genrelist">
+        <a href="{{ url_for('viewer', chart=chart, decade=decade, q=q) }}" class="genrebtn {{ 'active' if not genre else '' }}">All Genres</a>
+        {% for g in genres %}<a href="{{ url_for('viewer', chart=chart, decade=decade, genre=g, q=q) }}" class="genrebtn {{ 'active' if genre == g else '' }}">{{ g }}</a>{% endfor %}
+      </div>
+      <div style="background:rgba(255,255,255,0.02); border-radius:var(--radius); border:1px dashed var(--border); display:grid; place-items:center; color:var(--muted)">Select a genre to filter results.</div>
+    </div>
+  </section>
+</div>
+
+<script>
+  document.getElementById("topApply").addEventListener("click", () => {
+    const d = document.getElementById("topDecade").value;
+    const url = new URL(window.location.href);
+    url.searchParams.set("decade", d);
+    window.location.assign(url.toString());
+  });
+  document.getElementById("searchInput").addEventListener("keypress", (e) => {
+    if (e.key === 'Enter') {
+      const url = new URL(window.location.href);
+      url.searchParams.set("q", e.target.value);
+      window.location.assign(url.toString());
+    }
+  });
+</script>
+</body>
+</html>

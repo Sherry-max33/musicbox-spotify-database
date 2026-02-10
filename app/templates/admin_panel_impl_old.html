@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}MusicBox · Admin{% endblock %}
+
+{% block content %}
+<div class="section">
+
+  <!-- ===== PAGE HEADER ===== -->
+  <div class="card" style="padding:18px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+      <div>
+        <div style="font-size:34px; font-weight:900; letter-spacing:.02em;">GOVERNANCE</div>
+        <div class="muted" style="margin-top:6px;">
+          Admins approve/reject pending submissions and manage user permissions.
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <a class="btn" href="{{ url_for('viewer') }}">← Back to Viewer</a>
+        <a class="btn primary" href="{{ url_for('analyst') }}">Go to Analytics</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="spacer" style="height:14px;"></div>
+
+  <div style="display:grid; grid-template-columns: 1.25fr 1fr; gap:14px;">
+
+    <!-- ===== PENDING REVIEW ===== -->
+    <div class="card" style="padding:14px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+        <div class="section-title" style="margin:0;">Pending Review</div>
+        <div class="muted" style="font-size:12px;">Only approved items appear in Viewer/Analytics</div>
+      </div>
+
+      <table class="table" style="margin-top:10px;">
+        <thead>
+          <tr>
+            <th>Entity</th>
+            <th>Name</th>
+            <th>Submitted By</th>
+            <th style="width:240px;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if pending_items %}
+            {% for p in pending_items %}
+              {# p: (entity, id, name, submitted_by_email) #}
+              <tr>
+                <td>{{ p[0] }}</td>
+                <td>{{ p[2] }}</td>
+                <td class="muted">{{ p[3] or "—" }}</td>
+                <td>
+                  <form method="post" action="{{ url_for('admin_review') }}" style="display:flex; gap:8px;">
+                    <input type="hidden" name="entity" value="{{ p[0] }}">
+                    <input type="hidden" name="entity_id" value="{{ p[1] }}">
+                    <button class="btn primary" name="decision" value="approve" type="submit">Approve</button>
+                    <button class="btn danger" name="decision" value="reject" type="submit">Reject</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="4" class="muted" style="padding:12px;">No pending items.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+
+      <div class="muted" style="margin-top:10px; font-size:12px;">
+        Approval sets: <code style="font-family:var(--mono)">status='approved'</code>, fills <code style="font-family:var(--mono)">reviewed_by</code>.
+      </div>
+    </div>
+
+    <!-- ===== USER MANAGEMENT ===== -->
+    <div class="card" style="padding:14px;">
+      <div class="section-title" style="margin:0 0 10px 0;">User Management</div>
+
+      <!-- Create user -->
+      <form method="post" action="{{ url_for('admin_user_create') }}">
+        <div class="field">
+          <label>Email</label>
+          <input class="input" name="email" required>
+        </div>
+
+        <div class="field">
+          <label>Password</label>
+          <input class="input" name="password" required>
+        </div>
+
+        <div class="grid2">
+          <div class="field">
+            <label>Role</label>
+            <select class="input" name="role">
+              <option value="analyst">analyst</option>
+              <option value="admin">admin</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Active?</label>
+            <select class="input" name="is_active">
+              <option value="true">active</option>
+              <option value="false">inactive</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn primary" type="submit">Create User</button>
+      </form>
+
+      <div class="spacer" style="height:12px;"></div>
+
+      <!-- Users list -->
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Active</th>
+            <th style="width:220px;">Update</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if users %}
+            {% for u in users %}
+              {# u: (user_id, email, role, is_active) #}
+              <tr>
+                <td>{{ u[1] }}</td>
+                <td>{{ u[2] }}</td>
+                <td>{{ "Yes" if u[3] else "No" }}</td>
+                <td>
+                  <form method="post" action="{{ url_for('admin_user_update') }}" style="display:flex; gap:8px;">
+                    <input type="hidden" name="user_id" value="{{ u[0] }}">
+                    <select class="input" name="role" style="width:110px;">
+                      <option value="analyst" {% if u[2]=='analyst' %}selected{% endif %}>analyst</option>
+                      <option value="admin" {% if u[2]=='admin' %}selected{% endif %}>admin</option>
+                    </select>
+                    <select class="input" name="is_active" style="width:110px;">
+                      <option value="true" {% if u[3] %}selected{% endif %}>active</option>
+                      <option value="false" {% if not u[3] %}selected{% endif %}>inactive</option>
+                    </select>
+                    <button class="btn" type="submit">Save</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="4" class="muted" style="padding:12px;">No users.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+
+      <div class="muted" style="margin-top:10px; font-size:12px;">
+        Only admins can change roles and activation status.
+      </div>
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}
+

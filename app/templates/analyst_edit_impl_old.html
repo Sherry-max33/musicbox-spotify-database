@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}MusicBox · Analyst Edit{% endblock %}
+
+{% block content %}
+<div class="section">
+
+  <!-- ===== PAGE HEADER ===== -->
+  <div class="card" style="padding:18px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+      <div>
+        <div style="font-size:34px; font-weight:900; letter-spacing:.02em;">DATA SUBMISSION</div>
+        <div class="muted" style="margin-top:6px;">
+          Analysts submit or edit artists, albums, and tracks. Submissions are saved as <b>pending</b> for admin review.
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <a class="btn" href="{{ url_for('viewer') }}">← Back to Viewer</a>
+        <a class="btn primary" href="{{ url_for('analyst') }}">Go to Analytics</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="spacer" style="height:14px;"></div>
+
+  <!-- ===== CREATE / EDIT ===== -->
+  <div class="card" style="padding:14px;">
+    <div class="section-title" style="margin:0 0 12px 0;">Create / Edit (Pending)</div>
+
+    <div class="tabs" style="margin-bottom:12px;">
+      <a class="tab active" href="#artist-form" onclick="showForm('artist'); return false;">Artist</a>
+      <a class="tab" href="#album-form" onclick="showForm('album'); return false;">Album</a>
+      <a class="tab" href="#track-form" onclick="showForm('track'); return false;">Track</a>
+    </div>
+
+    <!-- ===== ARTIST FORM ===== -->
+    <form id="artist-form" method="post" action="{{ url_for('analyst_submit') }}" style="display:block;">
+      <input type="hidden" name="entity" value="artist">
+
+      <div class="grid2">
+        <div class="field">
+          <label>Artist ID (URI)</label>
+          <input class="input" name="artist_id" placeholder="spotify artist id / uri" required>
+        </div>
+        <div class="field">
+          <label>Artist Name</label>
+          <input class="input" name="artist_name" required>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:10px; align-items:center; flex-wrap:wrap;">
+        <button class="btn primary" type="submit">Submit (pending)</button>
+        <span class="muted" style="font-size:12px;">Tip: use Spotify URI ID if available.</span>
+      </div>
+    </form>
+
+    <!-- ===== ALBUM FORM ===== -->
+    <form id="album-form" method="post" action="{{ url_for('analyst_submit') }}" style="display:none;">
+      <input type="hidden" name="entity" value="album">
+
+      <div class="grid2">
+        <div class="field">
+          <label>Album ID (URI)</label>
+          <input class="input" name="album_id" required>
+        </div>
+        <div class="field">
+          <label>Album Name</label>
+          <input class="input" name="album_name" required>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="field">
+          <label>Release Date (YYYY-MM-DD)</label>
+          <input class="input" name="release_date" placeholder="2020-01-31">
+        </div>
+        <div class="field">
+          <label>Album Image URL</label>
+          <input class="input" name="album_image_url" placeholder="https://...">
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:10px;">
+        <button class="btn primary" type="submit">Submit (pending)</button>
+      </div>
+    </form>
+
+    <!-- ===== TRACK FORM ===== -->
+    <form id="track-form" method="post" action="{{ url_for('analyst_submit') }}" style="display:none;">
+      <input type="hidden" name="entity" value="track">
+
+      <div class="grid2">
+        <div class="field">
+          <label>Track ID (URI)</label>
+          <input class="input" name="track_id" required>
+        </div>
+        <div class="field">
+          <label>Track Name</label>
+          <input class="input" name="track_name" required>
+        </div>
+      </div>
+
+      <div class="grid3">
+        <div class="field">
+          <label>Popularity</label>
+          <input class="input" name="popularity" type="number" min="0" max="100" placeholder="0-100">
+        </div>
+        <div class="field">
+          <label>Duration (ms)</label>
+          <input class="input" name="duration_ms" type="number" placeholder="e.g., 210000">
+        </div>
+        <div class="field">
+          <label>Explicit?</label>
+          <input type="checkbox" name="explicit" style="margin-top:8px;">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Preview URL</label>
+        <input class="input" name="preview_url" placeholder="https://p.scdn.co/...">
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:10px;">
+        <button class="btn primary" type="submit">Submit (pending)</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="spacer" style="height:14px;"></div>
+
+  <!-- ===== My recent submissions (optional table) ===== -->
+  <div class="card" style="padding:14px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+      <div class="section-title" style="margin:0;">My Submissions (Recent)</div>
+      <div class="muted" style="font-size:12px;">Status should be pending until approved by admin</div>
+    </div>
+
+    <table class="table" style="margin-top:10px;">
+      <thead>
+        <tr>
+          <th>Entity</th>
+          <th>Name</th>
+          <th>Status</th>
+          <th>Submitted</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if my_submissions %}
+          {% for s in my_submissions %}
+            {# s: (entity, id, name, status, created_at) - up to your backend #}
+            <tr>
+              <td>{{ s[0] }}</td>
+              <td>{{ s[2] }}</td>
+              <td><span class="pill">{{ s[3] }}</span></td>
+              <td class="muted">{{ s[4] or "" }}</td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="4" class="muted" style="padding:12px;">No submissions to show.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+function showForm(name){
+  document.getElementById("artist-form").style.display = "none";
+  document.getElementById("album-form").style.display = "none";
+  document.getElementById("track-form").style.display = "none";
+  document.getElementById(name + "-form").style.display = "block";
+
+  document.querySelectorAll(".tabs .tab").forEach(t => t.classList.remove("active"));
+  // safest: find the tab by href hash
+  document.querySelectorAll(".tabs .tab").forEach(t => {
+    if (t.getAttribute("href") === "#" + name + "-form") t.classList.add("active");
+  });
+}
+</script>
+{% endblock %}

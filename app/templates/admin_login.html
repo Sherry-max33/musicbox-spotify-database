@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MusicBox Admin • Login</title>
+  <style>
+    :root{
+      --bg:#0b0b0b;
+      --panel:#121212;
+      --text:#eaeaea;
+      --muted:#a7a7a7;
+      --border:#2b2b2b;
+      --accent:#00f5a0;
+      --radius:18px;
+      --shadow: 0 12px 34px rgba(0,0,0,.45);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      color:var(--text);
+      background:
+        radial-gradient(1200px 600px at 50% -200px, rgba(0,245,160,.22), transparent 60%),
+        radial-gradient(900px 500px at 90% 0px, rgba(0,194,255,.10), transparent 55%),
+        var(--bg);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+    }
+    .shell{
+      width:min(980px, 100%);
+      border:1px solid var(--border);
+      border-radius:22px;
+      background:rgba(18,18,18,.78);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .top{
+      padding:18px 20px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      display:flex;
+      align-items:center;
+      gap:14px;
+    }
+    .logo-badge{
+      width:34px;height:34px;
+      border-radius:10px;
+      background:linear-gradient(135deg,var(--accent),rgba(0,245,160,.25));
+      display:grid;place-items:center;
+      color:#000;
+      font-weight:900;
+      font-size:18px;
+      line-height:1;
+      flex:0 0 auto;
+    }
+    .brand{
+      display:flex;
+      flex-direction:column;
+      line-height:1.1;
+    }
+    .brand .name{
+      font-weight:1000;
+      letter-spacing:.2px;
+      font-size:16px;
+    }
+    .brand .sub{
+      margin-top:4px;
+      font-family:var(--mono);
+      color:var(--muted);
+      font-size:12px;
+    }
+
+    .content{
+      padding:26px 20px 30px;
+      display:grid;
+      place-items:center;
+    }
+
+    .card{
+      width:min(420px, 100%);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:20px;
+      background:rgba(0,0,0,.22);
+      box-shadow: 0 10px 26px rgba(0,0,0,.35);
+      padding:18px 18px 16px;
+    }
+    .card h1{
+      margin:0 0 14px;
+      font-size:18px;
+      font-weight:1000;
+      letter-spacing:1px;
+    }
+    .field{
+      margin-top:12px;
+    }
+    label{
+      display:block;
+      font-family:var(--mono);
+      font-size:12px;
+      letter-spacing:.6px;
+      color:var(--muted);
+      margin-bottom:6px;
+    }
+    input[type="text"], input[type="password"]{
+      width:100%;
+      border-radius:14px;
+      padding:12px 12px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      outline:none;
+      font-size:14px;
+    }
+    input[type="text"]:focus, input[type="password"]:focus{
+      border-color: rgba(0,245,160,.5);
+      box-shadow: 0 0 0 4px rgba(0,245,160,.12);
+    }
+    .row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-top:12px;
+    }
+    .remember{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      color:var(--muted);
+      font-size:13px;
+      user-select:none;
+    }
+    .remember input{
+      width:16px;height:16px;
+      accent-color: var(--accent);
+    }
+    .btn{
+      margin-top:14px;
+      width:100%;
+      border-radius:16px;
+      border:1px solid rgba(0,245,160,.45);
+      background:rgba(0,245,160,.14);
+      color:var(--accent);
+      font-weight:1000;
+      padding:12px 14px;
+      cursor:pointer;
+      font-size:14px;
+    }
+    .btn:hover{background:rgba(0,245,160,.18)}
+    .foot{
+      margin-top:12px;
+      font-family:var(--mono);
+      font-size:12px;
+      color:rgba(167,167,167,.85);
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .pill{
+      border:1px solid rgba(255,255,255,.08);
+      background:rgba(255,255,255,.03);
+      padding:6px 10px;
+      border-radius:999px;
+      white-space:nowrap;
+    }
+
+    /* Optional small helper text */
+    .hint{
+      margin-top:10px;
+      color:rgba(167,167,167,.8);
+      font-size:12px;
+      line-height:1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="top">
+      <div class="logo-badge"><span style="display:inline-block;transform:translateY(1px);">♪</span></div>
+      <div class="brand">
+        <div class="name">MusicBox <span style="color:var(--muted);font-weight:900">Admin</span></div>
+      </div>
+    </div>
+
+    <div class="content">
+      <form class="card" method="post" action="login.php" autocomplete="on">
+        <h1>ADMIN LOGIN</h1>
+
+        <div class="field">
+          <label for="username">EMAIL / USERNAME</label>
+          <input id="username" name="username" type="text" placeholder="e.g., analyst@label.com" required />
+        </div>
+
+        <div class="field">
+          <label for="password">PASSWORD</label>
+          <input id="password" name="password" type="password" placeholder="••••••••" required />
+        </div>
+
+        <div class="row">
+          <label class="remember">
+            <input type="checkbox" name="remember_me" value="1" />
+            Remember me
+          </label>
+        </div>
+
+        <button class="btn" type="submit">SIGN IN</button>
+
+        
+      </form>
+    </div>
+  </div>
+</body>
+</html>

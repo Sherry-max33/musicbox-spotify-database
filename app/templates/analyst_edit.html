@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MusicBox Admin • Add / Edit Track</title>
+  <style>
+    :root{
+      --bg:#0b0b0b;
+      --panel:#121212;
+      --text:#eaeaea;
+      --muted:#a7a7a7;
+      --border:#2b2b2b;
+      --accent:#00f5a0;
+      --radius:18px;
+      --shadow: 0 12px 34px rgba(0,0,0,.45);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      color:var(--text);
+      background:
+        radial-gradient(1200px 600px at 50% -200px, rgba(0,245,160,.22), transparent 60%),
+        radial-gradient(900px 500px at 90% 0px, rgba(0,194,255,.10), transparent 55%),
+        var(--bg);
+    }
+    .wrap{max-width:1040px;margin:22px auto;padding:0 18px 60px;}
+
+    .shell{
+      border:1px solid var(--border);
+      border-radius:22px;
+      background:rgba(18,18,18,.78);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    /* top */
+    .top{
+      padding:18px 20px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      display:flex;align-items:center;justify-content:space-between;gap:16px;
+    }
+    .brandwrap{display:flex;align-items:center;gap:14px;}
+    .logo-badge{
+      width:34px;height:34px;border-radius:10px;
+      background:linear-gradient(135deg,var(--accent),rgba(0,245,160,.25));
+      display:grid;place-items:center;
+      color:#000;font-weight:900;font-size:18px;line-height:1;
+      flex:0 0 auto;
+    }
+    .brand .name{font-weight:1000;letter-spacing:.2px;font-size:16px;line-height:1.1;}
+    .brand .crumb{margin-top:4px;font-family:var(--mono);color:var(--muted);font-size:12px;}
+
+    .btn{
+      border-radius:16px;
+      border:1px solid rgba(0,245,160,.45);
+      background:rgba(0,245,160,.14);
+      color:var(--accent);
+      font-weight:1000;
+      padding:10px 14px;
+      cursor:pointer;
+      font-size:13px;
+      font-family:var(--mono);
+      white-space:nowrap;
+    }
+    .btn:hover{background:rgba(0,245,160,.18)}
+    .btn.secondary{
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+    }
+    .btn.danger{
+      border:1px solid rgba(255,90,90,.45);
+      background:rgba(255,90,90,.10);
+      color:#ff6b6b;
+    }
+
+    .linkback{
+      display:inline-flex;align-items:center;gap:10px;
+      margin:14px 0 0 20px;
+      color:var(--muted);
+      font-family:var(--mono);
+      font-size:13px;
+      text-decoration:none;
+      width:fit-content;
+    }
+    .linkback:hover{color:var(--text)}
+    .linkback .pill{
+      width:38px;height:38px;border-radius:14px;
+      display:grid;place-items:center;
+      background:rgba(0,245,160,.10);
+      border:1px solid rgba(0,245,160,.35);
+      color:var(--accent);
+      font-weight:1000;
+    }
+
+    /* content */
+    .content{padding:18px 20px 22px;}
+    .section{
+      border:1px solid rgba(255,255,255,.08);
+      background:rgba(0,0,0,.18);
+      border-radius:20px;
+      padding:16px 16px 14px;
+      margin-top:14px;
+      box-shadow: 0 10px 26px rgba(0,0,0,.25);
+    }
+    .section h3{
+      margin:0 0 12px;
+      font-family:var(--mono);
+      font-size:12px;
+      letter-spacing:1px;
+      color:var(--muted);
+      text-transform:uppercase;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 190px 1fr;
+      gap:12px 14px;
+      align-items:center;
+    }
+    label{
+      font-family:var(--mono);
+      font-size:12px;
+      letter-spacing:.6px;
+      color:rgba(167,167,167,.95);
+    }
+    input{
+      width:100%;
+      border-radius:14px;
+      padding:12px 12px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      outline:none;
+      font-size:13px;
+      font-family:var(--mono);
+    }
+    input:focus{
+      border-color: rgba(0,245,160,.5);
+      box-shadow: 0 0 0 4px rgba(0,245,160,.12);
+    }
+    input::placeholder{color:#7f7f7f}
+
+    .two{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    .rel{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:10px;
+      align-items:center;
+    }
+    .rel .addnew{padding:10px 12px;border-radius:14px;}
+
+    /* Flat genre pills (no dropdown) */
+    .pills{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+    }
+    .pill-radio{
+      position:relative;
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      padding:10px 14px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(255,255,255,.04);
+      cursor:pointer;
+      font-family:var(--mono);
+      font-size:12px;
+      color:var(--text);
+      user-select:none;
+      transition: border-color .12s ease, background .12s ease, transform .12s ease;
+    }
+    .pill-radio:hover{border-color:rgba(0,245,160,.35)}
+    .pill-radio input{position:absolute;opacity:0;pointer-events:none;}
+    .pill-radio.active{
+      border-color: rgba(0,245,160,.55);
+      background: rgba(0,245,160,.10);
+      box-shadow: 0 0 0 4px rgba(0,245,160,.10);
+    }
+
+    .footer{
+      margin-top:18px;
+      padding-top:16px;
+      border-top:1px solid rgba(255,255,255,.06);
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
+      gap:10px;
+    }
+
+    @media (max-width: 780px){
+      .grid{grid-template-columns:1fr;}
+      .two{grid-template-columns:1fr;}
+      .linkback{margin-left:16px}
+      .content{padding:16px}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="shell">
+      <div class="top">
+        <div class="brandwrap">
+          <div class="logo-badge"><span style="display:inline-block;transform:translateY(1px);">♪</span></div>
+          <div class="brand">
+            <div class="name">MusicBox <span style="color:var(--muted);font-weight:900">Admin</span></div>
+            <div class="crumb">Tracks • Add / Edit</div>
+          </div>
+        </div>
+        <button class="btn secondary" type="button" onclick="alert('Saved (mock)')">Save</button>
+      </div>
+
+      <a class="linkback" href="#" onclick="return false;">
+        <span class="pill">←</span>
+        <span>Back to list</span>
+      </a>
+
+      <div class="content">
+        <!-- Track Info -->
+        <div class="section">
+          <h3>Track Info</h3>
+          <div class="grid">
+            <label for="track_name">Track Name</label>
+            <input id="track_name" type="text" placeholder="e.g., Rolling in the Deep" />
+
+            <label>Duration / Release Date</label>
+            <div class="two">
+              <input type="number" min="0" placeholder="Duration (sec)" />
+              <input type="text" placeholder="Release Date (YYYY-MM-DD)" />
+            </div>
+
+            <label for="preview_url">Preview URL</label>
+            <input id="preview_url" type="url" placeholder="https://..." />
+          </div>
+        </div>
+
+        <!-- Relations -->
+        <div class="section">
+          <h3>Relations</h3>
+          <div class="grid">
+            <label for="artist">Artist</label>
+            <div class="rel">
+              <input id="artist" type="text" placeholder="search artist…" />
+              <button class="btn secondary addnew" type="button">+ Add New</button>
+            </div>
+
+            <label for="album">Album</label>
+            <div class="rel">
+              <input id="album" type="text" placeholder="search album…" />
+              <button class="btn secondary addnew" type="button">+ Add New</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Genre -->
+        <div class="section">
+          <h3>Artist Genre</h3>
+          <div class="grid">
+            <label>Genre</label>
+            <div class="pills" id="genrePills">
+              <label class="pill-radio active"><input type="radio" name="genre" value="Pop" checked>Pop</label>
+              <label class="pill-radio"><input type="radio" name="genre" value="Rock">Rock</label>
+              <label class="pill-radio"><input type="radio" name="genre" value="Hip-Hop">Hip-Hop</label>
+              <label class="pill-radio"><input type="radio" name="genre" value="R&B">R&B</label>
+              <label class="pill-radio"><input type="radio" name="genre" value="Jazz">Jazz</label>
+              <label class="pill-radio"><input type="radio" name="genre" value="Classical">Classical</label>
+              <label class="pill-radio"><input type="radio" name="genre" value="Electronic">Electronic</label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cover -->
+        <div class="section">
+          <h3>Cover (optional, from album)</h3>
+          <div class="grid">
+            <label for="album_cover_url">Album Cover URL</label>
+            <input id="album_cover_url" type="url" placeholder="https://..." />
+          </div>
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="footer">
+          <button class="btn secondary" type="button">Cancel</button>
+          <button class="btn" type="button">Save</button>
+          <button class="btn danger" type="button">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Toggle pill active state (pure UI)
+    document.querySelectorAll('#genrePills .pill-radio').forEach(lab=>{
+      lab.addEventListener('click', ()=>{
+        document.querySelectorAll('#genrePills .pill-radio').forEach(x=>x.classList.remove('active'));
+        lab.classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>

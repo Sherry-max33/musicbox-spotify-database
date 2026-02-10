@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{% block title %}MusicBox{% endblock %}</title>
+
+  <style>
+    :root{
+      --bg:#0b0b0b;
+      --panel:#121212;
+      --card:#1c1c1c;
+      --card2:#171717;
+      --text:#eaeaea;
+      --muted:#a7a7a7;
+      --border:#2b2b2b;
+      --accent:#00f5a0;
+      --accent2:#00d38b;
+      --danger:#ff4d4d;
+      --warning:#f5c542;
+      --radius:18px;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      color:var(--text);
+      background:
+        radial-gradient(1200px 800px at 60% -10%, rgba(0,245,160,.18), transparent 55%),
+        radial-gradient(900px 600px at 10% 20%, rgba(0,245,160,.10), transparent 60%),
+        linear-gradient(180deg, #080808, #0b0b0b);
+      min-height:100vh;
+    }
+    a{color:inherit; text-decoration:none}
+    .container{max-width:1120px; margin:0 auto; padding:24px 18px 60px;}
+    .shell{
+      background:rgba(18,18,18,.75);
+      border:1px solid rgba(43,43,43,.9);
+      border-radius:24px;
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      backdrop-filter: blur(10px);
+    }
+
+    /* Top bar */
+    .topbar{
+      display:flex; align-items:center; gap:14px;
+      padding:16px 18px;
+      border-bottom:1px solid rgba(43,43,43,.9);
+      background: linear-gradient(180deg, rgba(18,18,18,.75), rgba(18,18,18,.55));
+    }
+    .brand{display:flex; align-items:center; gap:10px; min-width:220px;}
+    .logo{
+      width:34px; height:34px; border-radius:10px;
+      background: radial-gradient(18px 18px at 30% 30%, rgba(0,245,160,.9), rgba(0,245,160,.35));
+      display:grid; place-items:center;
+      box-shadow: 0 8px 24px rgba(0,245,160,.08);
+    }
+    .brand h1{font-size:14px; margin:0; line-height:1.1;}
+    .brand p{margin:0; font-size:12px; color:var(--muted);}
+
+    .search{
+      flex:1; display:flex; align-items:center;
+      background: rgba(20,20,20,.9);
+      border:1px solid rgba(43,43,43,.9);
+      border-radius:999px;
+      padding:10px 12px;
+      gap:10px;
+    }
+    .search input{
+      width:100%; border:0; outline:0; background:transparent;
+      color:var(--text); font-size:14px;
+    }
+    .nav{
+      display:flex; gap:8px; align-items:center;
+    }
+    .pill{
+      padding:9px 12px;
+      border-radius:999px;
+      border:1px solid rgba(43,43,43,.9);
+      background: rgba(16,16,16,.6);
+      color: var(--muted);
+      font-size:12px;
+    }
+    .pill.active{
+      background: rgba(0,245,160,.12);
+      color: var(--text);
+      border-color: rgba(0,245,160,.35);
+    }
+
+    /* Sections */
+    .section{padding:18px;}
+    .section-title{
+      font-size:14px; letter-spacing:.14em; color:var(--muted);
+      text-transform:uppercase;
+      margin:0 0 12px 0;
+    }
+
+    /* Buttons */
+    .btn{
+      border:1px solid rgba(43,43,43,.9);
+      background: rgba(16,16,16,.55);
+      color:var(--text);
+      border-radius:999px;
+      padding:10px 14px;
+      font-size:12px;
+      cursor:pointer;
+    }
+    .btn.primary{
+      background: rgba(0,245,160,.18);
+      border-color: rgba(0,245,160,.40);
+    }
+    .btn.primary:hover{background: rgba(0,245,160,.24);}
+    .btn.danger{
+      background: rgba(255,77,77,.12);
+      border-color: rgba(255,77,77,.35);
+    }
+
+    /* Cards / tables */
+    .card{
+      border:1px solid rgba(43,43,43,.9);
+      background: rgba(20,20,20,.70);
+      border-radius: 22px;
+      box-shadow: 0 12px 28px rgba(0,0,0,.35);
+    }
+    .table{
+      width:100%;
+      border-collapse: collapse;
+      font-size:13px;
+    }
+    .table th{
+      text-align:left;
+      font-size:11px;
+      color: var(--muted);
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      padding:12px 10px;
+      border-bottom:1px solid rgba(43,43,43,.9);
+    }
+    .table td{
+      padding:12px 10px;
+      border-bottom:1px solid rgba(43,43,43,.55);
+      vertical-align:middle;
+    }
+    .row{
+      display:flex; gap:14px; align-items:center;
+    }
+    .cover{
+      width:40px; height:40px; border-radius:12px;
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(43,43,43,.9);
+      overflow:hidden;
+      flex:0 0 auto;
+    }
+    .cover img{width:100%; height:100%; object-fit:cover; display:block}
+    .muted{color:var(--muted)}
+    .rank{
+      font-weight:700;
+      color: var(--accent);
+      font-family: var(--mono);
+    }
+
+    /* Chips / tabs */
+    .tabs{display:flex; gap:8px; flex-wrap:wrap;}
+    .tab{
+      padding:9px 12px; border-radius:999px;
+      border:1px solid rgba(43,43,43,.9);
+      background: rgba(16,16,16,.55);
+      font-size:12px; color:var(--muted);
+      cursor:pointer;
+    }
+    .tab.active{
+      background: rgba(0,245,160,.14);
+      border-color: rgba(0,245,160,.35);
+      color: var(--text);
+    }
+
+    /* Forms */
+    .field{display:flex; flex-direction:column; gap:6px; margin-bottom:12px;}
+    label{font-size:11px; color:var(--muted); letter-spacing:.10em; text-transform:uppercase;}
+    .input{
+      border:1px solid rgba(43,43,43,.9);
+      background: rgba(12,12,12,.55);
+      color: var(--text);
+      border-radius: 14px;
+      padding:10px 12px;
+      outline: none;
+    }
+    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+    .grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;}
+
+    /* Flash */
+    .flash{
+      margin: 14px 18px 0;
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px solid rgba(0,245,160,.35);
+      background: rgba(0,245,160,.10);
+      font-size:13px;
+    }
+
+    /* Footer spacing */
+    .spacer{height:6px;}
+  </style>
+
+  {% block head_extra %}{% endblock %}
+</head>
+
+<body>
+  <div class="container">
+    <div class="shell">
+
+      <div class="topbar">
+        <a class="brand" href="{{ url_for('viewer') }}">
+          <div class="logo">♪</div>
+          <div>
+            <h1>MusicBox</h1>
+            <p>Discover your sound.</p>
+          </div>
+        </a>
+
+        <!-- Global search: q supports song/artist/album -->
+        <form class="search" method="get" action="{{ url_for('viewer') }}">
+          <span class="muted" style="font-family:var(--mono); font-size:12px;">⌕</span>
+          <input name="q" value="{{ request.args.get('q','') }}" placeholder="Search songs, artists, albums..." />
+        </form>
+
+        <div class="nav">
+          <a class="pill {% if request.path.startswith('/viewer') %}active{% endif %}" href="{{ url_for('viewer') }}">Viewer</a>
+          <a class="pill {% if request.path.startswith('/analyst') %}active{% endif %}" href="{{ url_for('analyst') }}">Analyst</a>
+          <a class="pill {% if request.path.startswith('/admin') %}active{% endif %}" href="{{ url_for('admin') }}">Admin</a>
+        </div>
+      </div>
+
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}
+          {% for msg in messages %}
+            <div class="flash">{{ msg }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+</body>
+</html>
+

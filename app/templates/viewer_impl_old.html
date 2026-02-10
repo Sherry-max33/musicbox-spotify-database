@@ -1,0 +1,183 @@
+<!-- templates/viewer.html -->
+{% extends "base.html" %}
+{% set active_nav = "viewer" %}
+{% set title = "MusicBox • Top Charts" %}
+
+{% block content %}
+  <div class="card" style="padding:18px;">
+
+    <!-- ====== TOP CHARTS (top section) ====== -->
+    <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap;">
+      <div>
+        <div class="h1">TOP CHARTS</div>
+        <div class="muted" style="margin-top:6px;">
+          Browse top songs, artists, and albums. Filter by decade and explore by genre below.
+        </div>
+      </div>
+
+      <!-- Only decade filter + apply (match your mockup) -->
+      <form method="get" action="{{ url_for('viewer') }}" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <input type="hidden" name="tab" value="{{ tab or 'songs' }}">
+        <input type="hidden" name="q" value="{{ q or '' }}">
+        <input type="hidden" name="genre" value="{{ genre or '' }}">  {# keep genre from bottom section #}
+
+        <label class="muted2" style="font-size:12px; font-weight:900; letter-spacing:.12em;">DECADE</label>
+        <select name="decade">
+          <option value="">All</option>
+          {% for d in decades %}
+            <option value="{{ d }}" {% if decade==d %}selected{% endif %}>{{ d }}s</option>
+          {% endfor %}
+        </select>
+
+        <button class="btn btn-primary" type="submit">Apply</button>
+      </form>
+    </div>
+
+    <div class="sp16"></div>
+
+    <!-- Top tabs (Song/Artist/Album) -->
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <a class="pill {{ 'active' if (tab or 'songs')=='songs' else '' }}"
+         href="{{ url_for('viewer', tab='songs', decade=decade, genre=genre, q=q) }}">Song Top Chart</a>
+
+      <a class="pill {{ 'active' if tab=='artists' else '' }}"
+         href="{{ url_for('viewer', tab='artists', decade=decade, genre=genre, q=q) }}">Artist Top Chart</a>
+
+      <a class="pill {{ 'active' if tab=='albums' else '' }}"
+         href="{{ url_for('viewer', tab='albums', decade=decade, genre=genre, q=q) }}">Album Top Chart</a>
+    </div>
+
+    <div class="sp16"></div>
+
+    {% if (tab or 'songs') == 'songs' %}
+      <table>
+        <thead>
+          <tr>
+            <th style="width:70px;">Rank</th>
+            <th style="width:70px;">Cover</th>
+            <th>Track</th>
+            <th style="width:260px;">Artist</th>
+            <th style="width:240px;">Preview</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            {# rows: (track_name, artist_name, album_name, popularity, album_image_url, preview_url) #}
+            <tr>
+              <td class="rank">#{{ loop.index }}</td>
+              <td>
+                {% if r[4] %}
+                  <img class="cover" src="{{ r[4] }}" alt="cover">
+                {% else %}
+                  <div class="cover"></div>
+                {% endif %}
+              </td>
+
+              <td>
+                <div class="title">{{ r[0] }}</div>
+                <div class="sub">{{ r[2] or "" }}</div>
+              </td>
+
+              <td>
+                <div class="title">{{ r[1] }}</div>
+                <div class="sub">popularity: {{ r[3] if r[3] is not none else '—' }}</div>
+              </td>
+
+              <td>
+                {% if r[5] %}
+                  <audio class="audio" controls preload="none" src="{{ r[5] }}"></audio>
+                {% else %}
+                  <span class="muted2">No preview</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      {% if rows|length == 0 %}
+        <div class="muted2" style="padding:18px;">No results.</div>
+      {% endif %}
+
+    {% else %}
+      <div class="card" style="padding:16px; border-radius:18px; background: rgba(255,255,255,.02);">
+        <div class="title">This tab is ready in UI ✅</div>
+        <div class="muted" style="margin-top:6px;">
+          Next step: we’ll update <code>app.py</code> to return proper rows for
+          <b>Artist Top Chart</b> and <b>Album Top Chart</b> (with covers + totals + filters).
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="sp22"></div>
+
+    <!-- ====== EXPLORE BY GENRES (bottom section) ====== -->
+    <div class="section-title">Explore by Genres</div>
+
+    <div class="row" style="align-items:stretch;">
+      <!-- left: 7 big genres list -->
+      <div class="card" style="flex:1; min-width:240px; max-width:280px; padding:14px; border-radius:22px; background: rgba(255,255,255,.02);">
+        {% set big7 = ['Pop','Rock','Hip-Hop','R&B','Jazz','Classical','Electronic'] %}
+
+        {% for g in big7 %}
+          <form method="get" action="{{ url_for('viewer') }}" style="margin:0 0 10px 0;">
+            <input type="hidden" name="tab" value="{{ genre_tab or 'songs' }}">
+            <input type="hidden" name="decade" value="{{ decade or '' }}">
+            <input type="hidden" name="q" value="{{ q or '' }}">
+            <input type="hidden" name="genre" value="{{ g }}">
+            <button type="submit"
+              class="btn {{ 'btn-primary' if genre==g else 'btn-ghost' }}"
+              style="width:100%; display:flex; justify-content:flex-start; padding:14px 14px; border-radius:16px; font-size:16px;">
+              {{ g }}
+            </button>
+          </form>
+        {% endfor %}
+      </div>
+
+      <!-- right: gallery area with Songs/Artists/Albums tabs -->
+      <div class="card" style="flex:3; min-width:520px; padding:16px; border-radius:22px; background: rgba(255,255,255,.02);">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span class="muted2" style="font-size:12px; font-weight:900; letter-spacing:.12em;">DECADE</span>
+            <span class="pill">{{ decade ~ 's' if decade else 'All' }}</span>
+          </div>
+
+          <div style="display:flex; gap:10px;">
+            {% set gt = request.args.get('genre_tab', 'songs') %}
+            <a class="pill {{ 'active' if gt=='songs' else '' }}"
+               href="{{ url_for('viewer', tab=tab, decade=decade, genre=genre, q=q, genre_tab='songs') }}">Songs</a>
+            <a class="pill {{ 'active' if gt=='artists' else '' }}"
+               href="{{ url_for('viewer', tab=tab, decade=decade, genre=genre, q=q, genre_tab='artists') }}">Artists</a>
+            <a class="pill {{ 'active' if gt=='albums' else '' }}"
+               href="{{ url_for('viewer', tab=tab, decade=decade, genre=genre, q=q, genre_tab='albums') }}">Albums</a>
+          </div>
+        </div>
+
+        <div class="sp16"></div>
+
+        <!-- Simple gallery (reuse top rows for now) -->
+        <div style="display:flex; gap:14px; flex-wrap:wrap;">
+          {% for r in rows[:8] %}
+            <div class="card" style="width:180px; padding:12px; border-radius:18px; background: rgba(255,255,255,.03);">
+              {% if r[4] %}
+                <img src="{{ r[4] }}" alt="cover" style="width:100%; height:160px; border-radius:16px; object-fit:cover; border:1px solid rgba(255,255,255,.10);">
+              {% else %}
+                <div style="width:100%; height:160px; border-radius:16px; background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10);"></div>
+              {% endif %}
+              <div style="margin-top:10px;">
+                <div class="title" style="font-size:14px; line-height:1.15;">{{ r[0] }}</div>
+                <div class="sub">{{ r[1] }}</div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+
+        {% if rows|length == 0 %}
+          <div class="muted2">No results for this filter.</div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+{% endblock %}
+
