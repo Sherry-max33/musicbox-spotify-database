@@ -1,4 +1,5 @@
 # etl/etl_load.py
+import argparse
 import os
 import re
 import uuid
@@ -39,7 +40,7 @@ COLUMN_CANDIDATES = {
     "artist_id": ["artist_id", "artist_uri", "artist_uri_s"],
     "album_id": ["album_id", "album_uri"],
     # optional fields
-    "release_date": ["release_date", "album_release_date", "date"],
+    "release_date": ["album_release_date", "release_date", "date"],
     "popularity": ["popularity"],
     "duration_ms": ["duration_ms", "track_duration_ms", "duration"],
     "explicit": ["explicit"],
@@ -94,6 +95,48 @@ def split_multi(val):
     s = s.strip("[](){}")
     s = s.replace("'", "").replace('"', "")
     return [x.strip() for x in s.split(",") if x.strip()]
+
+
+def normalize_release_date_str(x):
+    """将格式不统一的 release date 字符串规范为可解析形式：去引号、去/统一 dash、只保留数字与标准分隔符，便于解析后统一取年份。"""
+    if pd.isna(x):
+        return ""
+    s = str(x).strip()
+    # 去掉首尾引号、反引号
+    s = re.sub(r"^['\"`\s]+|['\"`\s]+$", "", s)
+    if not s or s.lower() in ("nan", "none", "nat", ""):
+        return ""
+    # 统一/去掉 dash：Unicode 横线、en-dash、em-dash 等替换为普通 hyphen，或去掉（仅保留数字时再解析）
+    s = re.sub(r"[\u2010-\u2015\u2212\uff0d\-–—]", "-", s)
+    # 去掉多余空格
+    s = re.sub(r"\s+", "", s)
+    # 斜杠统一为 hyphen（如 2003/01/14）
+    s = s.replace("/", "-")
+    # 只保留数字和 hyphen，避免混入其它字符导致解析失败
+    s = re.sub(r"[^\d\-]", "", s)
+    return s
+
+
+def parse_release_date_to_year(s: str):
+    """解析 release date 字符串，返回 (year, date) 或 (None, None)。统一为年份后存 date(year, 1, 1)。"""
+    s = normalize_release_date_str(s)
+    if not s:
+        return None, None
+    try:
+        # 支持 2009、2003-01-14、20030114 等
+        if re.match(r"^\d{4}$", s):
+            y = int(s)
+            if 1900 <= y <= 2100:
+                return y, pd.Timestamp(year=y, month=1, day=1).date()
+        dt = pd.to_datetime(s, errors="coerce")
+        if pd.isna(dt):
+            return None, None
+        y = dt.year
+        if 1900 <= y <= 2100:
+            return y, pd.Timestamp(year=y, month=1, day=1).date()
+    except Exception:
+        pass
+    return None, None
 
 
 def parse_bool(x):
@@ -165,10 +208,42 @@ def map_genre_to_group(genre: str):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="ETL: load Spotify data into musicbox DB")
+    parser.add_argument("--albums-only", action="store_true", help="Reload only albums (TRUNCATE albums + album_tracks, then insert corrected data)")
+    parser.add_argument("--verify", action="store_true", help="Run verification query: albums total, null release_date count, pct_null")
+    parser.add_argument("--print-columns", action="store_true", help="Print all column names after ETL (no DB write)")
+    args = parser.parse_args()
+    albums_only = args.albums_only
+    do_verify = args.verify
+    do_print_columns = args.print_columns
+
+    if do_verify:
+        conn = psycopg2.connect(**DB)
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT
+              COUNT(*) AS total,
+              COUNT(*) FILTER (WHERE release_date IS NULL) AS null_cnt,
+              ROUND(100.0 * COUNT(*) FILTER (WHERE release_date IS NULL) / NULLIF(COUNT(*), 0), 2) AS pct_null
+            FROM albums;
+        """)
+        row = cur.fetchone()
+        print(f"Albums: total={row[0]}, null release_date={row[1]}, pct_null={row[2]}%")
+        cur.close()
+        conn.close()
+        return
+
     if not os.path.exists(CSV_PATH):
         raise FileNotFoundError(f"CSV not found at {CSV_PATH}")
 
     df = pd.read_csv(CSV_PATH)
+    # Strip BOM and whitespace from column names so "Album Release Date" is found
+    df.columns = [str(c).strip().lstrip("\ufeff") for c in df.columns]
+    # Use exact source column "Album Release Date" for album release date (before normalizing)
+    for c in list(df.columns):
+        if c.strip() == "Album Release Date":
+            df = df.rename(columns={c: "album_release_date"})
+            break
     df.columns = [norm_colname(c) for c in df.columns]
 
     # Required
@@ -187,7 +262,9 @@ def main():
     c_artist_id = find_col(df, "artist_id")  # artist_uri_s
     c_album_id = find_col(df, "album_id")
 
-    # Optional
+    # Optional: release_date 映射链
+    # 原表 CSV 列 "Album Release Date" -> 重命名为 "album_release_date" -> find_col 得到 c_release_date
+    # -> albums_cols 含 c_release_date -> 重命名为 "release_date" -> DB albums.release_date
     c_release_date = find_col(df, "release_date")
     c_popularity = find_col(df, "popularity")
     c_duration_ms = find_col(df, "duration_ms")
@@ -261,18 +338,27 @@ def main():
     if c_album_image:
         albums_cols.append(c_album_image)
 
-    albums = df[albums_cols].drop_duplicates().copy()
-    rename_map = {"album_id_norm": "album_id", c_album_name: "album_name"}
+    # 按专辑只保留一行：同一专辑多行时优先保留 release_date 非空的那行（先按专辑再按日期排序，空值排最后）
+    _albums_df = df[albums_cols].copy()
     if c_release_date:
-        rename_map[c_release_date] = "release_date"
+        # 正则规范化：去引号、统一/去掉 dash，解析后统一为年份（存 date(year, 1, 1)）
+        _albums_df["_rd"] = _albums_df[c_release_date].apply(
+            lambda x: parse_release_date_to_year(x)[1]
+        )
+        _albums_df["_rd_ts"] = pd.to_datetime(_albums_df["_rd"], errors="coerce")
+        _albums_df = _albums_df.sort_values(["album_id_norm", "_rd_ts"], na_position="last")
+        _albums_df = _albums_df.drop(columns=["_rd_ts"])
+    albums = _albums_df.drop_duplicates(subset=["album_id_norm"], keep="first").copy()
+    if c_release_date:
+        albums["release_date"] = albums["_rd"]
+        albums["release_date"] = albums["release_date"].where(
+            albums["release_date"].notna(), None
+        )
+        albums = albums.drop(columns=["_rd", c_release_date])
+    rename_map = {"album_id_norm": "album_id", c_album_name: "album_name"}
     if c_album_image:
         rename_map[c_album_image] = "album_image_url"
     albums = albums.rename(columns=rename_map)
-
-    # force dates; keep python date or None
-    if "release_date" in albums.columns:
-        albums["release_date"] = pd.to_datetime(albums["release_date"], errors="coerce").dt.date
-        albums["release_date"] = albums["release_date"].where(albums["release_date"].notna(), None)
 
     # -----------------------
     # TRACKS
@@ -362,6 +448,30 @@ def main():
         if c not in audio_features.columns:
             audio_features[c] = None
 
+    if do_print_columns:
+        print("=== ETL 之后各表列名 ===\n")
+        print("【release_date 映射】")
+        print("  原表列名: 'Album Release Date' (CSV 带空格)")
+        print("  -> 重命名: df['album_release_date']")
+        print("  -> find_col('release_date') 得到: c_release_date =", repr(c_release_date))
+        print("  -> albums 表列名: 'release_date'")
+        print("  -> 入库: albums.release_date -> DB albums.release_date")
+        non_null = albums["release_date"].notna().sum() if "release_date" in albums.columns else 0
+        print("  样本: albums.release_date 非空行数 =", non_null, "/", len(albums))
+        if "release_date" in albums.columns and non_null > 0:
+            sample = albums["release_date"].dropna().head(5).tolist()
+            print("  前 5 个非空值:", sample)
+        print()
+        print("df (原始 CSV 处理后):", list(df.columns))
+        print("artists:", list(artists.columns))
+        print("albums:", list(albums.columns))
+        print("tracks:", list(tracks.columns))
+        print("track_artist:", list(track_artist.columns))
+        print("album_tracks:", list(album_tracks.columns))
+        print("artist_genres:", list(artist_genres.columns))
+        print("audio_features:", list(audio_features.columns))
+        return
+
     # -----------------------
     # LOAD TO POSTGRES
     # -----------------------
@@ -370,6 +480,37 @@ def main():
     cur = conn.cursor()
 
     try:
+        if albums_only:
+            cur.execute("TRUNCATE album_tracks")
+            cur.execute("TRUNCATE albums CASCADE")
+            album_rows = []
+            for _, r in albums.iterrows():
+                rd = r["release_date"] if "release_date" in albums.columns else None
+                if rd is None or pd.isna(rd) or str(rd).strip().lower() == "nat":
+                    rd = None
+                img = r["album_image_url"] if "album_image_url" in albums.columns else None
+                if img is None or pd.isna(img) or str(img).strip().lower() in ("nan", "none"):
+                    img = None
+                album_rows.append((r["album_id"], r["album_name"], rd, img, "approved"))
+            execute_values(
+                cur,
+                "INSERT INTO albums (album_id, album_name, release_date, album_image_url, status) VALUES %s ",
+                album_rows,
+                page_size=2000
+            )
+            execute_values(
+                cur,
+                "INSERT INTO album_tracks (album_id, track_id, disc_number, track_number) VALUES %s ",
+                list(album_tracks.itertuples(index=False, name=None)),
+                page_size=5000
+            )
+            conn.commit()
+            print("✅ Albums-only reload completed.")
+            print(f"Albums: {len(albums)} | Album_Tracks: {len(album_tracks)}")
+            cur.close()
+            conn.close()
+            return
+
         # artists
         execute_values(
             cur,
@@ -395,7 +536,7 @@ def main():
         execute_values(
             cur,
             "INSERT INTO albums (album_id, album_name, release_date, album_image_url, status) VALUES %s "
-            "ON CONFLICT (album_id) DO UPDATE SET album_name=EXCLUDED.album_name",
+            "ON CONFLICT (album_id) DO UPDATE SET album_name=EXCLUDED.album_name, release_date=EXCLUDED.release_date, album_image_url=EXCLUDED.album_image_url",
             album_rows,
             page_size=2000
         )

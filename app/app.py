@@ -1,4 +1,24 @@
 # app/app.py
+"""
+Viewer 各表排序/排名逻辑（/viewer 的 Song / Artist / Album Top Chart）：
+
+- Song Top Chart
+  - 筛选：t.status = 'approved'，且按专辑 release_date 做 decade 筛选（可选）。
+  - 去重：DISTINCT ON (t.track_id)，每首歌只保留一行（多专辑/多艺人时取 popularity 最高的一行）。
+  - 排序：按 popularity DESC NULLS LAST，取前 50 条（前端只展示前 10）。
+
+- Artist Top Chart
+  - 筛选：与 Song 一致，按专辑 release_date 做 decade 筛选。
+  - 热度：同一首歌在不同专辑出现多次则算多次（不去重），按艺人 SUM(popularity) 得到 score。
+  - 每人 TOP TRACK：该艺人在筛选集合内 popularity 最高的那一首（ROW_NUMBER() rn=1）。
+  - 排序：按 score（SUM(popularity)）DESC NULLS LAST，取前 10。
+
+- Album Top Chart
+  - 筛选：与 Song 一致，t.status = 'approved' 且按专辑 release_date 做 decade 筛选。
+  - 热度：专辑热度 = 专辑内所有歌曲的热度之和（每首歌只计一次，SUM(t.popularity) 按专辑聚合）。
+  - 专辑艺人：取该专辑内总热度最高的艺人（避免 MIN(artist_name) 按字母序误显示 feat. 艺人）。
+  - 排序：按专辑热度 DESC NULLS LAST，取前 10。
+"""
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash
 import psycopg2
@@ -52,154 +72,180 @@ def home():
 
 
 # -------------------------
-# VIEWER  (FIXED VERSION)
+# VIEWER (dynamic: query by decade / genre / search)
 # -------------------------
 @app.route("/viewer", methods=["GET"])
 def viewer():
-    """
-    Key fixes:
-    - chart in URL drives data (song/artist/album)
-    - decade in URL truly filters by year
-    - Big7 genres map correctly (no empty page)
-    - rows remain 7 columns for songs
-    """
-
-    # ---- READ URL STATE ----
-    chart = request.args.get("chart", "song")   # song | artist | album
+    chart = request.args.get("chart", "song").strip().lower()
+    if chart not in ("song", "artist", "album"):
+        chart = "song"
     decade = request.args.get("decade", "All")
     genre = request.args.get("genre", "")
     q = request.args.get("q", "").strip()
 
-    # normalize decade
-    if decade.lower() == "all":
-        decade = "All"
-
-    where = ["t.status='approved'"]
-    params = []
-
-    # ---- DECADE FILTER ----
-    if decade != "All":
+    decade_start = None
+    decade_end = None
+    if decade and decade != "All":
         try:
-            start_year = int(decade.rstrip("s"))
-            where.append(
-                """
-                a.release_date IS NOT NULL
-                AND EXTRACT(YEAR FROM a.release_date) >= %s
-                AND EXTRACT(YEAR FROM a.release_date) < %s
-                """
-            )
-            params.extend([start_year, start_year + 10])
-        except Exception:
+            start_year = int(str(decade).rstrip("s"))
+            decade_start = start_year
+            decade_end = start_year + 9
+        except (ValueError, AttributeError):
             pass
 
-    # ---- BIG7 GENRE FILTER (CRITICAL FIX) ----
-    if genre and genre in BIG7:
-        where.append("""
-        EXISTS (
-          SELECT 1
-          FROM track_artist ta2
-          JOIN artist_genres ag2
-            ON ag2.artist_id = ta2.artist_id
-          WHERE ta2.track_id = t.track_id
-            AND (
-              (%s='Pop'        AND lower(ag2.genre_name) ~ '(pop|indie|k-pop|mandopop|synth)') OR
-              (%s='Rock'       AND lower(ag2.genre_name) ~ '(rock|metal|punk|grunge|alternative)') OR
-              (%s='Hip-Hop'    AND lower(ag2.genre_name) ~ '(hip hop|hip-hop|rap|trap)') OR
-              (%s='R&B'        AND lower(ag2.genre_name) ~ '(r&b|rnb|soul|funk)') OR
-              (%s='Jazz'       AND lower(ag2.genre_name) ~ '(jazz|swing|bebop)') OR
-              (%s='Classical'  AND lower(ag2.genre_name) ~ '(classical|opera|symphony|piano|violin|orchestral)') OR
-              (%s='Electronic' AND lower(ag2.genre_name) ~ '(edm|house|techno|trance|dubstep|electronic|electro)')
-            )
-        )
-        """)
-        params.extend([genre] * 7)
-
-    # ---- SEARCH ----
-    if q:
-        where.append("""
-        (lower(t.track_name) LIKE lower(%s)
-         OR lower(ar.artist_name) LIKE lower(%s)
-         OR lower(a.album_name) LIKE lower(%s))
-        """)
-        like = f"%{q}%"
-        params.extend([like, like, like])
-
-    # =========================
-    # SONG TOP CHART (DEFAULT)
-    # =========================
     if chart == "song":
+        song_sql = """
+        SELECT *
+        FROM (
+          SELECT DISTINCT ON (t.track_id)
+            t.track_id,
+            t.track_name,
+            t.popularity,
+            t.preview_url,
+            ar.artist_name,
+            al.album_name,
+            al.album_image_url,
+            al.release_date
+          FROM tracks t
+          JOIN track_artist ta ON ta.track_id = t.track_id
+          JOIN artists ar ON ar.artist_id = ta.artist_id
+          JOIN album_tracks at ON at.track_id = t.track_id
+          JOIN albums al ON al.album_id = at.album_id
+          WHERE t.status = 'approved'
+            AND (%(decade_start)s IS NULL OR (
+                  al.release_date IS NOT NULL
+                  AND EXTRACT(YEAR FROM al.release_date)
+                      BETWEEN %(decade_start)s AND %(decade_end)s
+            ))
+          ORDER BY t.track_id, t.popularity DESC NULLS LAST
+        ) AS x
+        ORDER BY x.popularity DESC NULLS LAST
+        LIMIT 50;
+        """
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    song_sql,
+                    {"decade_start": decade_start, "decade_end": decade_end},
+                )
+                rows = cur.fetchall()
+
+    elif chart == "artist":
+        # 与 Song Top Chart 一致：按专辑 release_date 做 decade 筛选。同一首歌在不同专辑出现多次则算多次热度（不去重）
+        artist_sql = """
+        WITH decade_tracks AS (
+          SELECT t.track_id, t.track_name, t.preview_url, t.popularity, ar.artist_id, ar.artist_name
+          FROM tracks t
+          JOIN track_artist ta ON ta.track_id = t.track_id
+          JOIN artists ar ON ar.artist_id = ta.artist_id
+          JOIN album_tracks at ON at.track_id = t.track_id
+          JOIN albums al ON al.album_id = at.album_id
+          WHERE t.status = 'approved'
+            AND (%(decade_start)s IS NULL OR (
+                  al.release_date IS NOT NULL
+                  AND EXTRACT(YEAR FROM al.release_date)
+                      BETWEEN %(decade_start)s AND %(decade_end)s
+            ))
+        ),
+        ranked AS (
+          SELECT artist_id, artist_name, track_name, preview_url, popularity,
+                 ROW_NUMBER() OVER (PARTITION BY artist_id ORDER BY popularity DESC NULLS LAST) AS rn
+          FROM decade_tracks
+        ),
+        artist_score AS (
+          SELECT artist_id, SUM(popularity)::numeric AS score FROM decade_tracks GROUP BY artist_id
+        )
+        SELECT r.artist_name, r.track_name, r.preview_url
+        FROM ranked r
+        JOIN artist_score s ON s.artist_id = r.artist_id
+        WHERE r.rn = 1
+        ORDER BY s.score DESC NULLS LAST
+        LIMIT 10;
+        """
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    artist_sql,
+                    {"decade_start": decade_start, "decade_end": decade_end},
+                )
+                rows = cur.fetchall()
+
+    elif chart == "album":
+        # 专辑热度 = 专辑内所有歌曲热度之和（每首歌只计一次）；专辑艺人取该专辑内总热度最高的艺人
+        album_sql = """
+        WITH album_total AS (
+          SELECT a.album_id, a.album_name, a.album_image_url,
+                 SUM(t.popularity) AS album_total
+          FROM albums a
+          JOIN album_tracks at ON at.album_id = a.album_id
+          JOIN tracks t ON t.track_id = at.track_id
+          WHERE t.status = 'approved'
+            AND (%(decade_start)s IS NULL OR (
+                  a.release_date IS NOT NULL
+                  AND EXTRACT(YEAR FROM a.release_date)
+                      BETWEEN %(decade_start)s AND %(decade_end)s
+            ))
+          GROUP BY a.album_id, a.album_name, a.album_image_url
+        ),
+        album_artist_pop AS (
+          SELECT a.album_id, ar.artist_name, SUM(t.popularity) AS artist_pop
+          FROM albums a
+          JOIN album_tracks at ON at.album_id = a.album_id
+          JOIN tracks t ON t.track_id = at.track_id
+          JOIN track_artist ta ON ta.track_id = t.track_id
+          JOIN artists ar ON ar.artist_id = ta.artist_id
+          WHERE t.status = 'approved'
+            AND (%(decade_start)s IS NULL OR (
+                  a.release_date IS NOT NULL
+                  AND EXTRACT(YEAR FROM a.release_date)
+                      BETWEEN %(decade_start)s AND %(decade_end)s
+            ))
+          GROUP BY a.album_id, ar.artist_id, ar.artist_name
+        ),
+        best_artist AS (
+          SELECT DISTINCT ON (album_id) album_id, artist_name
+          FROM album_artist_pop
+          ORDER BY album_id, artist_pop DESC NULLS LAST
+        )
+        SELECT tot.album_name, tot.album_image_url, ba.artist_name
+        FROM album_total tot
+        JOIN best_artist ba ON ba.album_id = tot.album_id
+        ORDER BY tot.album_total DESC NULLS LAST
+        LIMIT 10;
+        """
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    album_sql,
+                    {"decade_start": decade_start, "decade_end": decade_end},
+                )
+                rows = cur.fetchall()
+
+    else:
+        chart = "song"
+        where = ["t.status = 'approved'"]
+        params = []
+        if q:
+            where.append("(lower(t.track_name) LIKE lower(%s) OR lower(ar.artist_name) LIKE lower(%s) OR lower(a.album_name) LIKE lower(%s))")
+            params.extend([f"%{q}%", f"%{q}%", f"%{q}%"])
         sql = f"""
-        SELECT
-          t.track_id,
-          t.track_name,
-          ar.artist_name,
-          a.album_name,
-          t.popularity,
-          a.album_image_url,
-          t.preview_url
+        SELECT t.track_id, t.track_name, ar.artist_name, a.album_name, t.popularity, a.album_image_url, t.preview_url
         FROM tracks t
-        JOIN album_tracks at ON at.track_id=t.track_id
-        JOIN albums a ON a.album_id=at.album_id
-        JOIN track_artist ta ON ta.track_id=t.track_id
-        JOIN artists ar ON ar.artist_id=ta.artist_id
+        JOIN album_tracks at ON at.track_id = t.track_id
+        JOIN albums a ON a.album_id = at.album_id
+        JOIN track_artist ta ON ta.track_id = t.track_id
+        JOIN artists ar ON ar.artist_id = ta.artist_id
         WHERE {" AND ".join(where)}
         ORDER BY t.popularity DESC NULLS LAST
         LIMIT 50;
         """
-
-    # =========================
-    # ARTIST TOP CHART
-    # =========================
-    elif chart == "artist":
-        sql = f"""
-        SELECT
-          ar.artist_id,
-          ar.artist_name,
-          COUNT(DISTINCT t.track_id) AS track_cnt,
-          MAX(t.popularity) AS max_pop,
-          MIN(a.album_image_url) AS any_cover,
-          NULL AS preview_url
-        FROM tracks t
-        JOIN album_tracks at ON at.track_id=t.track_id
-        JOIN albums a ON a.album_id=at.album_id
-        JOIN track_artist ta ON ta.track_id=t.track_id
-        JOIN artists ar ON ar.artist_id=ta.artist_id
-        WHERE {" AND ".join(where)}
-        GROUP BY ar.artist_id, ar.artist_name
-        ORDER BY max_pop DESC NULLS LAST
-        LIMIT 50;
-        """
-
-    # =========================
-    # ALBUM TOP CHART
-    # =========================
-    else:  # album
-        sql = f"""
-        SELECT
-          a.album_id,
-          a.album_name,
-          ar.artist_name,
-          MAX(t.popularity) AS max_pop,
-          a.album_image_url,
-          NULL AS preview_url
-        FROM tracks t
-        JOIN album_tracks at ON at.track_id=t.track_id
-        JOIN albums a ON a.album_id=at.album_id
-        JOIN track_artist ta ON ta.track_id=t.track_id
-        JOIN artists ar ON ar.artist_id=ta.artist_id
-        WHERE {" AND ".join(where)}
-        GROUP BY a.album_id, a.album_name, ar.artist_name, a.album_image_url
-        ORDER BY max_pop DESC NULLS LAST
-        LIMIT 50;
-        """
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, params)
+                rows = cur.fetchall()
 
     decades = ["All", "1980s", "1990s", "2000s", "2010s", "2020s"]
     genres = list(BIG7)
-
-    with get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(sql, params)
-            rows = cur.fetchall()
 
     return render_template(
         "viewer.html",

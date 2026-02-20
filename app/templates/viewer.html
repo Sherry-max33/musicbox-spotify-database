@@ -3,130 +3,625 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>MusicBox – Wireframe Demo</title>
+  <title>Music Charts – Wireframe Demo</title>
   <style>
     :root{
-      --bg:#0b0b0b; --panel:#121212; --card:#1c1c1c; --text:#eaeaea;
-      --muted:#a7a7a7; --border:#2b2b2b; --accent:#00f5a0; --radius:18px;
+      --bg:#0b0b0b;
+      --panel:#121212;
+      --card:#1c1c1c;
+      --text:#eaeaea;
+      --muted:#a7a7a7;
+      --border:#2b2b2b;
+      --accent:#00f5a0;
+      --radius:18px;
       --shadow: 0 10px 30px rgba(0,0,0,.35);
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
     }
     *{box-sizing:border-box}
     body{
-      margin:0; font-family:var(--sans); color:var(--text);
-      background: radial-gradient(1200px 600px at 50% -200px, rgba(0,245,160,.25), transparent 60%), var(--bg);
+      margin:0;
+      font-family:var(--sans);
+      color:var(--text);
+      background:
+        radial-gradient(1200px 600px at 50% -200px, rgba(0,245,160,.25), transparent 60%),
+        radial-gradient(900px 500px at 90% 0px, rgba(0,194,255,.12), transparent 55%),
+        var(--bg);
     }
-    .wrap{max-width:1120px; margin:0 auto; padding:22px 18px 60px}
+    .wrap{max-width:1120px;margin:0 auto;padding:22px 18px 60px}
 
-    /* Topbar & Logo */
-    .topbar{ display:flex; align-items:center; gap:14px; padding:14px; border:1px solid var(--border); border-radius:var(--radius); background:rgba(18,18,18,.78); backdrop-filter: blur(10px); }
-    .logo{display:flex; align-items:center; gap:10px; min-width:180px; font-weight:800;}
-    .logo-badge{ width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg,var(--accent),rgba(0,245,160,.25)); display:grid; place-items:center; color:#000; font-weight:900; }
-    .search{ flex:1; display:flex; align-items:center; gap:10px; background:rgba(255,255,255,.04); border:1px solid var(--border); border-radius:999px; padding:10px 14px; }
-    .search input{ width:100%; border:0; outline:0; background:transparent; color:var(--text); font-size:14px; }
+    /* Top bar */
+    .topbar{
+      display:flex;align-items:center;gap:14px;
+      padding:14px 14px;
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      background:rgba(18,18,18,.78);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow);
+    }
+    .logo{
+      display:flex;align-items:center;gap:10px;min-width:180px;
+      font-weight:800;
+    }
+    .logo-badge{
+      width:34px;height:34px;border-radius:10px;
+      background:linear-gradient(135deg,var(--accent),rgba(0,245,160,.25));
+      display:grid;place-items:center;color:#000;font-weight:900;
+    }
+    .slogan{
+      font-size:12px;color:var(--muted);font-family:var(--mono);margin-top:2px;
+    }
+    .search{
+      flex:1;display:flex;align-items:center;gap:10px;
+      background:rgba(255,255,255,.04);
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:10px 14px;
+    }
+    .search input{
+      width:100%;
+      border:0;outline:0;background:transparent;color:var(--text);
+      font-size:14px;
+    }
 
-    /* Section & Chart */
-    .section{ margin-top:18px; border:1px solid var(--border); border-radius:var(--radius); background:rgba(18,18,18,.72); box-shadow: var(--shadow); overflow:hidden; }
-    .section-title{ display:flex; align-items:center; justify-content:space-between; padding:16px 18px; background: linear-gradient(90deg, rgba(0,245,160,.88), rgba(0,245,160,.12)); color:#000; font-weight:900; }
-    
-    .controls{ display:flex; align-items:center; gap:12px; padding:14px 18px; border-top:1px solid var(--border); background:rgba(18,18,18,.75); }
-    .tabs{display:flex; gap:10px;}
-    .tab{ border:1px solid var(--border); background:rgba(255,255,255,.03); color:var(--text); padding:10px 14px; border-radius:999px; cursor:pointer; font-weight:700; text-decoration: none; font-size: 13px; }
-    .tab.active{ border-color:rgba(0,245,160,.5); box-shadow:0 0 0 3px rgba(0,245,160,.12) inset; }
+    /* Section */
+    .section{
+      margin-top:18px;
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      background:rgba(18,18,18,.72);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .section-title{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:16px 18px;
+      background: linear-gradient(90deg, rgba(0,245,160,.88), rgba(0,245,160,.12));
+      color:#000;
+      font-weight:900;
+      letter-spacing:1px;
+    }
 
-    /* 卡片行样式 */
-    .table{ width:100%; border-collapse:separate; border-spacing:0 10px; padding: 0 18px 18px; }
-    .row{ background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
-    .row td{ padding:10px; vertical-align:middle; }
-    .rank{ width:56px; font-family:var(--mono); color:var(--accent); font-weight:900; font-size:16px; text-align: center; }
-    .cover{ width:54px; height:54px; border-radius:14px; overflow:hidden; border:1px solid rgba(255,255,255,.08); }
-    .cover img{ width:100%; height:100%; object-fit:cover; }
-    .main{ font-weight:850; font-size: 15px; }
-    .sub{ color:var(--muted); font-size:13px; margin-top:2px; }
-    
-    .btn-open{ background:var(--accent); color:#000; border:0; padding:8px 16px; border-radius:10px; font-weight:800; cursor:pointer; font-size:12px; }
-    audio { height: 30px; width: 140px; filter: invert(100%) hue-rotate(90deg); opacity: 0.8; }
-    
-    .genrebtn{ text-align:left; border:1px solid var(--border); background:rgba(255,255,255,.03); color:var(--text); padding:11px 12px; border-radius:14px; text-decoration: none; display: block; margin-bottom: 8px; font-weight: 800; }
-    .genrebtn.active{ background:rgba(0,245,160,.12); border-color:var(--accent); color:var(--accent); }
+    /* Controls */
+    .controls{
+      display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+      padding:14px 18px;
+      border-top:1px solid var(--border);
+      background:rgba(18,18,18,.75);
+    }
+    .tabs{display:flex;gap:10px;flex-wrap:wrap}
+    .tab{
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.03);
+      color:var(--text);
+      padding:10px 14px;
+      border-radius:999px;
+      cursor:pointer;
+      font-weight:700;
+      text-decoration:none;
+    }
+    .tab.active{
+      border-color:rgba(0,245,160,.5);
+      box-shadow:0 0 0 3px rgba(0,245,160,.12) inset;
+    }
+    .filter{
+      display:flex;align-items:center;gap:8px;
+      margin-left:auto;
+    }
+    .select{
+      appearance:none;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.03);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius:12px;
+      font-weight:700;
+      cursor:pointer;
+    }
+    .btn{
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius:12px;
+      cursor:pointer;
+      font-weight:800;
+    }
+    .btn.primary{
+      background:var(--accent);
+      color:#000;
+      border-color:rgba(0,245,160,.45);
+    }
+
+    /* Chart table */
+    .chart{padding: 0 18px 18px;}
+    .table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0 10px;
+    }
+    .thead th{
+      text-align:left;
+      font-size:12px;
+      letter-spacing:.8px;
+      color:var(--muted);
+      font-family:var(--mono);
+      padding:6px 10px;
+    }
+    .row{
+      background:rgba(255,255,255,.03);
+      border:1px solid var(--border);
+      border-radius:14px;
+      overflow:hidden;
+    }
+    .row td{
+      padding:10px;
+      vertical-align:middle;
+      border-top:1px solid rgba(255,255,255,.02);
+    }
+    .rank{
+      width:56px;
+      font-family:var(--mono);
+      color:var(--accent);
+      font-weight:900;
+      font-size:16px;
+    }
+    .cover{
+      width:72px;height:72px;border-radius:14px;
+      overflow:hidden;border:1px solid rgba(255,255,255,.08);
+      flex:0 0 auto;
+    }
+    .cover img{width:100%;height:100%;object-fit:cover;display:block}
+    .preview-cell{width:100px;vertical-align:middle}
+    .preview-cell audio{display:inline-block;width:auto;max-width:100%;height:28px;min-width:0;border-radius:999px;overflow:hidden}
+    .main{font-weight:850;line-height:1.15;}
+    .sub{color:var(--muted);font-size:13px;margin-top:2px;}
+    .play{
+      display:inline-flex;align-items:center;justify-content:center;
+      width:40px;height:40px;border-radius:12px;
+      border:1px solid rgba(0,245,160,.4);
+      background:rgba(0,245,160,.10);
+      cursor:pointer;
+      font-weight:900;
+      color:var(--accent);
+    }
+
+    .divider{height:1px;background:var(--border);margin:22px 0 0;}
+
+    /* Explore layout */
+    .explore{
+      display:grid;
+      grid-template-columns: 240px 1fr;
+      gap:14px;
+      padding:14px 18px 18px;
+    }
+    .genrelist{
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.03);
+      border-radius:var(--radius);
+      padding:12px;
+      display:flex;flex-direction:column;gap:10px;
+      min-height: 340px;
+    }
+    .genrebtn{
+      text-align:left;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.03);
+      color:var(--text);
+      padding:11px 12px;
+      border-radius:14px;
+      cursor:pointer;
+      font-weight:800;
+      text-decoration:none;
+    }
+    .genrebtn.active{
+      background:rgba(0,245,160,.12);
+      border-color:rgba(0,245,160,.45);
+    }
+    .exploreMain{
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.03);
+      border-radius:var(--radius);
+      padding:12px;
+      overflow:hidden;
+    }
+    .exploreControls{
+      display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+      padding:6px 4px 14px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      margin-bottom:12px;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap:14px;
+    }
+    .card{
+      background:rgba(18,18,18,.65);
+      border:1px solid var(--border);
+      border-radius:18px;
+      overflow:hidden;
+      box-shadow: 0 10px 22px rgba(0,0,0,.22);
+      position:relative;
+      cursor:pointer;
+      transition: transform .12s ease, border-color .12s ease;
+      min-height: 220px;
+    }
+    .card:hover{transform: translateY(-2px); border-color: rgba(0,245,160,.45);}
+    .card .img{height:150px; position:relative;background:rgba(255,255,255,.04);}
+    .card img{width:100%;height:100%;object-fit:cover;display:block}
+    .badge{
+      position:absolute;left:12px;bottom:12px;
+      width:44px;height:44px;border-radius:14px;
+      background:var(--accent);
+      color:#000;
+      display:grid;place-items:center;
+      font-weight:1000;
+      font-family:var(--mono);
+      box-shadow: 0 10px 18px rgba(0,245,160,.25);
+    }
+    .card .meta{padding:12px}
+    .card .meta .t{font-weight:900}
+    .card .meta .a{color:var(--muted); margin-top:6px; font-size:13px}
+
+    @media (max-width: 980px){
+      .grid{grid-template-columns: repeat(3, minmax(0, 1fr));}
+      .explore{grid-template-columns: 1fr;}
+      .genrelist{flex-direction:row;flex-wrap:wrap;min-height:auto}
+      .genrebtn{flex: 1 1 140px;}
+    }
+    @media (max-width: 680px){
+      .grid{grid-template-columns: repeat(2, minmax(0, 1fr));}
+      .rank{width:44px}
+    }
   </style>
 </head>
 
 <body>
-<div class="wrap">
-  <div class="topbar">
-    <div class="logo"><div class="logo-badge">♪</div><div style="font-weight:800; font-size:14px;">MusicBox</div></div>
-    <div class="search"><input id="searchInput" placeholder="Search..." value="{{ q }}"></div>
+  <div class="wrap">
+    <!-- Top bar (右侧链接已删除) -->
+    <div class="topbar">
+      <div class="logo">
+        <div class="logo-badge">♪</div>
+        <div>
+          <div style="font-size:14px;line-height:1">MusicBox</div>
+          <div class="slogan">Discover your sound.</div>
+        </div>
+      </div>
+
+      <form class="search" method="get" action="{{ url_for('viewer') }}" title="Search songs / artists / albums">
+        <input type="hidden" name="chart" value="{{ chart or 'song' }}" />
+        <input type="hidden" name="decade" value="{{ decade or 'All' }}" />
+        <input type="hidden" name="genre" value="{{ genre or '' }}" />
+        <span style="color:var(--muted);font-family:var(--mono)">⌕</span>
+        <input id="searchInput" name="q" value="{{ q or '' }}" placeholder="Search songs, artists, albums..." />
+      </form>
+    </div>
+
+    <!-- TOP CHARTS -->
+    <section class="section" id="topCharts">
+      <div class="section-title">
+        <div style="font-size:34px">TOP CHARTS</div>
+        <div style="font-family:var(--mono);font-size:13px">VIEW CHART</div>
+      </div>
+
+      <!-- Tabs + Decade -->
+      <div class="controls">
+        <div class="tabs" id="topTabs">
+          <a href="{{ url_for('viewer', chart='song', decade=decade or 'All', genre=genre or '', q=q or '') }}" class="tab {{ 'active' if (chart or 'song') == 'song' else '' }}">Song Top Chart</a>
+          <a href="{{ url_for('viewer', chart='artist', decade=decade or 'All', genre=genre or '', q=q or '') }}" class="tab {{ 'active' if chart == 'artist' else '' }}">Artist Top Chart</a>
+          <a href="{{ url_for('viewer', chart='album', decade=decade or 'All', genre=genre or '', q=q or '') }}" class="tab {{ 'active' if chart == 'album' else '' }}">Album Top Chart</a>
+        </div>
+
+        <form class="filter" method="get" action="{{ url_for('viewer') }}" style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+          <input type="hidden" name="chart" value="{{ chart or 'song' }}" />
+          <input type="hidden" name="genre" value="{{ genre or '' }}" />
+          <input type="hidden" name="q" value="{{ q or '' }}" />
+          <label style="color:var(--muted);font-family:var(--mono);font-size:12px">DECADE</label>
+          <select class="select" name="decade" id="topDecade">
+            {% for d in (decades or ['All','1980s','1990s','2000s','2010s','2020s']) %}
+            <option value="{{ d }}" {% if (decade or 'All') == d %}selected{% endif %}>{{ d }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn primary" id="topApply">Apply</button>
+        </form>
+      </div>
+
+      <div class="chart">
+        <table class="table" id="songTable" style="{{ 'display:none' if chart != 'song' else '' }}">
+          <thead class="thead">
+            <tr>
+              <th style="width:56px">RANK</th>
+              <th>COVER</th>
+              <th>TRACK</th>
+              <th>ARTIST</th>
+              <th style="width:110px">PREVIEW</th>
+            </tr>
+          </thead>
+          <tbody id="songBody">
+            {% if chart == 'song' %}
+            {% if (rows or [])|length == 0 %}
+            <tr class="row">
+              <td colspan="5" class="empty" style="color:var(--muted);padding:24px;text-align:center;">No songs found for this decade.</td>
+            </tr>
+            {% else %}
+            {% for r in (rows or [])[:10] %}
+            <tr class="row">
+              <td class="rank">#{{ loop.index }}</td>
+              <td><div class="cover">{% if r[6] %}<img src="{{ r[6] }}" loading="lazy" alt="cover" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/cover_placeholder.png') }}';"/>{% else %}<img src="{{ url_for('static', filename='img/cover_placeholder.png') }}" alt=""/>{% endif %}</div></td>
+              <td><div class="main">{{ r[1] }}</div></td>
+              <td><div class="sub">{{ r[4] }}</div></td>
+              <td class="preview-cell">{% if r[3] %}<button type="button" class="play preview-play" data-src="{{ r[3] }}" aria-label="播放">▶</button>{% else %}-{% endif %}</td>
+            </tr>
+            {% endfor %}
+            {% endif %}
+            {% endif %}
+          </tbody>
+        </table>
+
+        {% if chart == 'artist' %}
+        <table class="table" id="artistTable">
+          <thead class="thead">
+            <tr>
+              <th style="width:56px">RANK</th>
+              <th>ARTIST</th>
+              <th>TOP TRACK</th>
+              <th style="width:110px">PREVIEW</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in (rows or [])[:10] %}
+            <tr class="row">
+              <td class="rank">#{{ loop.index }}</td>
+              <td><div class="main">{{ r[0] }}</div></td>
+              <td><div class="sub">{{ r[1] }}</div></td>
+              <td class="preview-cell">{% if r[2] %}<button type="button" class="play preview-play" data-src="{{ r[2] }}" aria-label="播放">▶</button>{% else %}No preview{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+        {% if chart == 'album' %}
+        <table class="table" id="albumTable">
+          <thead class="thead">
+            <tr>
+              <th style="width:56px">RANK</th>
+              <th>COVER</th>
+              <th>ALBUM</th>
+              <th>ARTIST</th>
+              <th style="width:100px">OPEN</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in (rows or [])[:10] %}
+            <tr class="row">
+              <td class="rank">#{{ loop.index }}</td>
+              <td><div class="cover"><img src="{{ r[1] or url_for('static', filename='img/cover_placeholder.png') }}" loading="lazy" alt="" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/cover_placeholder.png') }}';"/></div></td>
+              <td><div class="main">{{ r[0] }}</div></td>
+              <td><div class="sub">{{ r[2] }}</div></td>
+              <td><button type="button" class="play open-btn" aria-label="打开" title="打开">↗</button></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+
+        <div class="divider"></div>
+
+        <div style="padding:18px 0 0 0; font-weight:1000; letter-spacing:1px">
+          <span style="color:var(--muted);font-family:var(--mono)">##</span>
+          <span style="margin-left:8px">EXPLORE BY GENRES</span>
+        </div>
+
+        <div class="explore">
+          <!-- Left: 7 genres -->
+          <div class="genrelist" id="genreList">
+            {% for g in (genres or []) %}
+            <a href="{{ url_for('viewer', genre=g, decade=decade or 'All', chart=chart or 'song', q=q or '') }}" class="genrebtn {{ 'active' if (genre or '') == g else '' }}">{{ g }}</a>
+            {% endfor %}
+          </div>
+
+          <!-- Right: Decade + type tabs (无 Apply 按钮) -->
+          <div class="exploreMain">
+            <div class="exploreControls">
+              <div style="display:flex;align-items:center;gap:8px;margin-right:auto">
+                <label style="color:var(--muted);font-family:var(--mono);font-size:12px">DECADE</label>
+                <select class="select" id="genreDecade">
+                  <option value="all">All</option>
+                  <option value="1980s">1980s</option>
+                  <option value="1990s">1990s</option>
+                  <option value="2000s">2000s</option>
+                  <option value="2010s">2010s</option>
+                  <option value="2020s">2020s</option>
+                </select>
+              </div>
+
+              <div class="tabs" id="genreTabs">
+                <button class="tab active" data-tab="songs">Songs</button>
+                <button class="tab" data-tab="artists">Artists</button>
+                <button class="tab" data-tab="albums">Albums</button>
+              </div>
+            </div>
+
+            <div class="grid" id="genreGrid"></div>
+            {% if genres and genres|length > 0 %}
+            <p style="color:var(--muted);font-size:13px;margin-top:12px;">按 Genre 的歌曲/艺人/专辑数据尚未与数据库连接。</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
-
-  <section class="section">
-    <div class="section-title">
-      <div style="font-size:34px">TOP {{ chart|upper }}S</div>
-      <div style="font-family:var(--mono);font-size:13px">VIEW CHART</div>
-    </div>
-
-    <div class="controls">
-      <div class="tabs">
-        <a href="{{ url_for('viewer', chart='song', decade=decade, genre=genre, q=q) }}" class="tab {{ 'active' if chart == 'song' else '' }}">Song Top Chart</a>
-        <a href="{{ url_for('viewer', chart='artist', decade=decade, genre=genre, q=q) }}" class="tab {{ 'active' if chart == 'artist' else '' }}">Artist Top Chart</a>
-        <a href="{{ url_for('viewer', chart='album', decade=decade, genre=genre, q=q) }}" class="tab {{ 'active' if chart == 'album' else '' }}">Album Top Chart</a>
-      </div>
-      <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
-        <select id="topDecade" style="background:#121212; color:#fff; border:1px solid var(--border); padding:8px; border-radius:10px;">
-          {% for d in decades %}<option value="{{ d }}" {{ 'selected' if d == decade else '' }}>{{ d }}</option>{% endfor %}
-        </select>
-        <button class="btn-open" id="topApply">Apply</button>
-      </div>
-    </div>
-
-    <table class="table">
-      <tbody>
-        {% for row in rows %}
-        <tr class="row">
-          <td class="rank">#{{ loop.index }}</td>
-          <td><div class="cover"><img src="{{ row[5] or row[4] or 'https://via.placeholder.com/150' }}"></div></td>
-          
-          {% if chart == 'song' %}
-            <td><div class="main">{{ row[1] }}</div><div class="sub">{{ row[2] }}</div></td>
-            <td>{% if row[6] %}<audio src="{{ row[6] }}" controls></audio>{% endif %}</td>
-          {% elif chart == 'artist' %}
-            <td><div class="main">{{ row[1] }}</div><div class="sub">Popularity: {{ row[3] }}</div></td>
-            <td><div class="main" style="color:var(--accent); font-size:14px">{{ row[2] }}</div><div class="sub">Top Track</div></td>
-            <td>{% if row[5] %}<audio src="{{ row[5] }}" controls></audio>{% endif %}</td>
-          {% else %}
-            <td><div class="main">{{ row[1] }}</div><div class="sub">{{ row[2] }}</div></td>
-            <td style="text-align:right"><button class="btn-open">OPEN</button></td>
-          {% endif %}
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-
-    <div class="explore" style="display:grid; grid-template-columns:240px 1fr; gap:14px; padding:20px; border-top:1px solid var(--border);">
-      <div class="genrelist">
-        <a href="{{ url_for('viewer', chart=chart, decade=decade, q=q) }}" class="genrebtn {{ 'active' if not genre else '' }}">All Genres</a>
-        {% for g in genres %}<a href="{{ url_for('viewer', chart=chart, decade=decade, genre=g, q=q) }}" class="genrebtn {{ 'active' if genre == g else '' }}">{{ g }}</a>{% endfor %}
-      </div>
-      <div style="background:rgba(255,255,255,0.02); border-radius:var(--radius); border:1px dashed var(--border); display:grid; place-items:center; color:var(--muted)">Select a genre to filter results.</div>
-    </div>
-  </section>
-</div>
+  <audio id="previewAudio" preload="none" style="display:none"></audio>
 
 <script>
-  document.getElementById("topApply").addEventListener("click", () => {
-    const d = document.getElementById("topDecade").value;
-    const url = new URL(window.location.href);
-    url.searchParams.set("decade", d);
-    window.location.assign(url.toString());
-  });
-  document.getElementById("searchInput").addEventListener("keypress", (e) => {
-    if (e.key === 'Enter') {
-      const url = new URL(window.location.href);
-      url.searchParams.set("q", e.target.value);
-      window.location.assign(url.toString());
+var HAS_SERVER_ROWS = {{ 'true' if (rows and rows|length > 0) else 'false' }};
+var HAS_SERVER_GENRES = {{ 'true' if (genres and genres|length > 0) else 'false' }};
+// ---- same demo data as before (shortened for brevity) ----
+const COVERS = {
+  afterHours: "https://archive.org/download/mbid-fd7ebee8-8c64-4127-a9be-8e31ed6364e3/mbid-fd7ebee8-8c64-4127-a9be-8e31ed6364e3-28418011574_thumb500.jpg",
+  adele21: "https://archive.org/download/mbid-57440dfc-191c-32bd-ada0-14ac366c2a12/mbid-57440dfc-191c-32bd-ada0-14ac366c2a12-835722588_thumb500.jpg",
+  okComputer: "https://archive.org/download/mbid-fba5f8fe-c6c8-4511-8562-c9febf482674/mbid-fba5f8fe-c6c8-4511-8562-c9febf482674-26537574690_thumb500.jpg",
+  thriller: "https://archive.org/download/mbid-1d9b9dce-6584-37c7-a2a8-fabca91136c2/mbid-1d9b9dce-6584-37c7-a2a8-fabca91136c2-25091040839_thumb500.jpg",
+  outkast: "https://archive.org/download/mbid-468cd19e-d55c-46a2-a5a6-66292d2f0a90/mbid-468cd19e-d55c-46a2-a5a6-66292d2f0a90-23968933675_thumb500.jpg"
+};
+
+const TOP_ARTISTS = [
+  {rank:1, artist:"The Weeknd", topTrack:"Blinding Lights", decade:"2020s"},
+  {rank:2, artist:"Adele", topTrack:"Rolling in the Deep", decade:"2010s"},
+  {rank:3, artist:"OutKast", topTrack:"Hey Ya!", decade:"2000s"},
+  {rank:4, artist:"Radiohead", topTrack:"Karma Police", decade:"1990s"},
+  {rank:5, artist:"Michael Jackson", topTrack:"Billie Jean", decade:"1980s"}
+];
+
+const TOP_ALBUMS = [
+  {rank:1, album:"After Hours", artist:"The Weeknd", decade:"2020s", cover:COVERS.afterHours},
+  {rank:2, album:"21", artist:"Adele", decade:"2010s", cover:COVERS.adele21},
+  {rank:3, album:"Speakerboxxx / The Love Below", artist:"OutKast", decade:"2000s", cover:COVERS.outkast},
+  {rank:4, album:"OK Computer", artist:"Radiohead", decade:"1990s", cover:COVERS.okComputer},
+  {rank:5, album:"Thriller (Special Edition)", artist:"Michael Jackson", decade:"1980s", cover:COVERS.thriller}
+];
+
+// 7 genres
+const GENRES = [
+  {key:"Pop", items:[]},
+  {key:"Rock", items:[]},
+  {key:"Hip-Hop", items:[]},
+  {key:"R&B", items:[]},
+  {key:"Jazz", items:[]},
+  {key:"Classical", items:[]},
+  {key:"Electronic", items:[]}
+];
+
+const $ = (s)=>document.querySelector(s);
+const $$ = (s)=>Array.from(document.querySelectorAll(s));
+
+var previewAudio = document.getElementById("previewAudio");
+if (previewAudio) {
+  function setAllPlayIcons() {
+    $$(".preview-play").forEach(function(btn){ btn.textContent = "▶"; });
+  }
+  previewAudio.addEventListener("pause", setAllPlayIcons);
+  previewAudio.addEventListener("ended", setAllPlayIcons);
+  document.addEventListener("click", function(e) {
+    var btn = e.target.closest(".preview-play");
+    if (!btn || !btn.dataset.src) return;
+    var src = btn.dataset.src;
+    if (previewAudio.src !== src || previewAudio.paused) {
+      setAllPlayIcons();
+      previewAudio.src = src;
+      previewAudio.play();
+      btn.textContent = "❚❚";
+    } else {
+      previewAudio.pause();
+      btn.textContent = "▶";
     }
   });
+}
+
+function playMock(label){
+  alert("Preview (mock): " + label);
+}
+
+// render TOP charts
+function renderTop(decade="all"){
+  const q = ($("#searchInput").value||"").toLowerCase();
+  const filterDecade = x => decade==="all" || x.decade===decade;
+  const filterSearch = t => !q || t.toLowerCase().includes(q);
+
+  // Song chart: always server-rendered from /viewer; no static mock injection.
+
+  // artists
+  const artists = TOP_ARTISTS.filter(filterDecade);
+  $("#artistBody").innerHTML = artists.map(a=>`
+    <tr class="row">
+      <td class="rank">#${a.rank}</td>
+      <td><div class="main">${a.artist}</div></td>
+      <td><div class="sub">${a.topTrack}</div></td>
+      <td><button class="play" onclick="playMock('${a.topTrack}')">▶</button></td>
+    </tr>
+  `).join("");
+
+  // albums
+  const albums = TOP_ALBUMS.filter(filterDecade);
+  $("#albumBody").innerHTML = albums.map(a=>`
+    <tr class="row">
+      <td class="rank">#${a.rank}</td>
+      <td><div class="cover"><img src="${a.cover}" loading="lazy"/></div></td>
+      <td><div class="main">${a.album}</div></td>
+      <td><div class="sub">${a.artist}</div></td>
+      <td><button class="play" onclick="alert('Open: ${a.album}')">↗</button></td>
+    </tr>
+  `).join("");
+}
+
+// tabs: now use <a> links; no click handler needed for chart switch
+// Apply: form submit; no extra handler
+if (!HAS_SERVER_ROWS) {
+  $("#topTabs").addEventListener("click", e=>{
+    const btn = e.target.closest(".tab"); if(!btn) return;
+    $$("#topTabs .tab").forEach(x=>x.classList.remove("active"));
+    btn.classList.add("active");
+    const t = btn.dataset.tab;
+    $("#songTable").style.display = t==="songs"?"":"none";
+    $("#artistTable").style.display = t==="artists"?"":"none";
+    $("#albumTable").style.display = t==="albums"?"":"none";
+  });
+  $("#topApply").addEventListener("click", ()=>{ renderTop($("#topDecade").value); });
+}
+
+// build left genre list
+let activeGenre = GENRES[0].key;
+let activeGenreTab = "songs";
+
+function renderGenreGrid(){
+  const decade = $("#genreDecade").value;
+  const genre = GENRES.find(g=>g.key===activeGenre);
+  let items = (genre.items||[]).filter(x=>x.type===activeGenreTab);
+  if(decade!=="all") items = items.filter(x=>x.decade===decade);
+
+  $("#genreGrid").innerHTML = items.map(x=>`
+    <div class="card" onclick="alert('Open: ${x.title}')">
+      <div class="img">
+        <img src="${x.cover}" loading="lazy"/>
+        <div class="badge">${x.rank}</div>
+      </div>
+      <div class="meta">
+        <div class="t">${x.title}</div>
+        <div class="a">${x.artist}</div>
+      </div>
+    </div>
+  `).join("");
+}
+
+const gl = $("#genreList");
+if (!HAS_SERVER_GENRES) {
+  gl.innerHTML = GENRES.map(g=>`
+    <button class="genrebtn ${g.key===activeGenre?"active":""}" data-genre="${g.key}">${g.key}</button>
+  `).join("");
+  gl.addEventListener("click", e=>{
+    const btn = e.target.closest(".genrebtn"); if(!btn) return;
+    activeGenre = btn.dataset.genre;
+    $$("#genreList .genrebtn").forEach(x=>x.classList.remove("active"));
+    btn.classList.add("active");
+    renderGenreGrid();
+  });
+}
+
+$("#genreTabs").addEventListener("click", e=>{
+  const btn = e.target.closest(".tab"); if(!btn) return;
+  $$("#genreTabs .tab").forEach(x=>x.classList.remove("active"));
+  btn.classList.add("active");
+  activeGenreTab = btn.dataset.tab;
+  renderGenreGrid();
+});
+
+$("#genreDecade").addEventListener("change", renderGenreGrid);
+
+// init
+renderTop("all");
+renderGenreGrid();
 </script>
 </body>
 </html>
