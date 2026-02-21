@@ -1,4 +1,21 @@
 # etl/etl_load.py
+"""
+ETL: 将 Spotify 等数据导入 musicbox 库。
+
+Genre 分类映射规则（Big-7）
+---------------------------
+数据源中的艺人细分类（fine genre）会映射到 7 个大类，写入 artist_genres 表（同时保留细分类）。
+Viewer 的「EXPLORE BY GENRES」按这 7 类筛选。
+
+- 匹配方式：对每个细分类字符串做 strip + lower，若其「包含」某类的任一关键词，则归入该类。
+- 优先级：按 GENRE_GROUPS 字典顺序，先匹配到的类优先（Pop → Rock → Hip-Hop → R&B → Jazz → Classical → Electronic）。
+- 特例：
+  - "hiphop"（无连字符）单独判为 Hip-Hop。
+  - Electronic：不含 "edm"、泛 "house"，避免流行/舞曲艺人误入电音；若细分类为 tropical / dance pop / pop dance / edm，即使命中 Electronic 关键词也不归入 Electronic。
+
+7 类及关键词（详见下方 GENRE_GROUPS）：
+  Pop, Rock, Hip-Hop, R&B, Jazz, Classical, Electronic.
+"""
 import argparse
 import os
 import re
@@ -183,6 +200,7 @@ def safe_smallint(x, minv=None, maxv=None):
 
 
 # ---------- genre grouping (7 big categories) ----------
+# 规则：细分类字符串包含某类任一关键词即归入该类；顺序即优先级。详见文件顶部 docstring。
 GENRE_GROUPS = {
     "Pop": ["pop", "k-pop", "kpop", "j-pop", "jpop", "dance pop", "electropop", "indie pop", "teen pop"],
     "Rock": ["rock", "alt rock", "alternative", "indie rock", "hard rock", "classic rock", "punk", "metal", "grunge", "emo"],
@@ -190,7 +208,8 @@ GENRE_GROUPS = {
     "R&B": ["r&b", "rnb", "rhythm and blues", "soul", "neo soul", "funk"],
     "Jazz": ["jazz", "bebop", "swing", "smooth jazz", "bossa nova", "blues"],
     "Classical": ["classical", "orchestra", "orchestral", "symphony", "baroque", "romantic", "opera", "chamber"],
-    "Electronic": ["electronic", "edm", "house", "techno", "trance", "dubstep", "drum and bass", "dnb", "ambient", "synthwave", "electro"],
+    # 不含 "edm"：数据源里很多流行艺人被标 edm，会误入电音；不含 "house" 泛匹配，避免 tropical house / dance pop 等进电音
+    "Electronic": ["electronic", "techno", "trance", "dubstep", "drum and bass", "dnb", "ambient", "synthwave", "electro", "electro house", "filter house", "progressive house"],
 }
 
 
@@ -201,6 +220,9 @@ def map_genre_to_group(genre: str):
     for group, kws in GENRE_GROUPS.items():
         for kw in kws:
             if kw in g:
+                # 避免 tropical house / dance 等把流行艺人归入 Electronic
+                if group == "Electronic" and ("tropical" in g or g in ("dance pop", "pop dance", "edm")):
+                    continue
                 return group
     if "hiphop" in g:
         return "Hip-Hop"

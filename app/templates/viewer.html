@@ -418,7 +418,7 @@
           <!-- Left: 7 genres -->
           <div class="genrelist" id="genreList">
             {% for g in (genres or []) %}
-            <a href="{{ url_for('viewer', genre=g, decade=decade or 'All', chart=chart or 'song', q=q or '') }}" class="genrebtn {{ 'active' if (genre or '') == g else '' }}">{{ g }}</a>
+            <a href="{{ url_for('viewer', genre=g, decade=decade or 'All', chart=chart or 'song', q=q or '') }}" class="genrebtn {{ 'active' if (genre or '') == g else '' }}" data-genre="{{ g }}">{{ g }}</a>
             {% endfor %}
           </div>
 
@@ -445,9 +445,7 @@
             </div>
 
             <div class="grid" id="genreGrid"></div>
-            {% if genres and genres|length > 0 %}
-            <p style="color:var(--muted);font-size:13px;margin-top:12px;">按 Genre 的歌曲/艺人/专辑数据尚未与数据库连接。</p>
-            {% endif %}
+            <p id="genreGridStatus" style="color:var(--muted);font-size:13px;margin-top:12px;display:none;"></p>
           </div>
         </div>
       </div>
@@ -458,6 +456,8 @@
 <script>
 var HAS_SERVER_ROWS = {{ 'true' if (rows and rows|length > 0) else 'false' }};
 var HAS_SERVER_GENRES = {{ 'true' if (genres and genres|length > 0) else 'false' }};
+var INITIAL_GENRE = {{ (genre or '')|tojson }};
+var COVER_PLACEHOLDER = {{ url_for('static', filename='img/cover_placeholder.png')|tojson }};
 // ---- same demo data as before (shortened for brevity) ----
 const COVERS = {
   afterHours: "https://archive.org/download/mbid-fd7ebee8-8c64-4127-a9be-8e31ed6364e3/mbid-fd7ebee8-8c64-4127-a9be-8e31ed6364e3-28418011574_thumb500.jpg",
@@ -571,28 +571,93 @@ if (!HAS_SERVER_ROWS) {
   $("#topApply").addEventListener("click", ()=>{ renderTop($("#topDecade").value); });
 }
 
-// build left genre list
-let activeGenre = GENRES[0].key;
-let activeGenreTab = "songs";
+// build left genre list: sync with URL when server provides genres
+var genreListEl = $("#genreList");
+var activeGenre = (INITIAL_GENRE && GENRES.some(g=>g.key===INITIAL_GENRE)) ? INITIAL_GENRE : GENRES[0].key;
+var activeGenreTab = "songs";
 
-function renderGenreGrid(){
-  const decade = $("#genreDecade").value;
-  const genre = GENRES.find(g=>g.key===activeGenre);
-  let items = (genre.items||[]).filter(x=>x.type===activeGenreTab);
-  if(decade!=="all") items = items.filter(x=>x.decade===decade);
+function renderGenreCards(items, type){
+  if (!items || items.length === 0) {
+    $("#genreGrid").innerHTML = "";
+    return;
+  }
+  var placeholder = typeof COVER_PLACEHOLDER !== "undefined" ? COVER_PLACEHOLDER : "";
+  if (type === "songs") {
+    $("#genreGrid").innerHTML = items.map(x=>{
+      var cover = (x.album_image_url || placeholder);
+      var preview = (x.preview_url ? `<button type="button" class="preview-play" style="position:absolute;right:10px;bottom:10px;width:36px;height:36px;border-radius:50%;border:0;background:var(--accent);color:#000;cursor:pointer;font-size:14px;" data-src="${x.preview_url.replace(/"/g,"&quot;")}" aria-label="Preview">▶</button>` : "");
+      return `<div class="card">
+        <div class="img" style="position:relative">
+          <img src="${cover}" loading="lazy" onerror="this.onerror=null;this.src='${placeholder}';"/>
+          <div class="badge">${x.rank}</div>${preview}
+        </div>
+        <div class="meta">
+          <div class="t">${(x.track_name||"").replace(/</g,"&lt;")}</div>
+          <div class="a">${(x.artist_name||"").replace(/</g,"&lt;")}</div>
+        </div>
+      </div>`;
+    }).join("");
+  } else if (type === "artists") {
+    $("#genreGrid").innerHTML = items.map(x=>{
+      var cover = placeholder;
+      var preview = (x.preview_url ? `<button type="button" class="preview-play" style="position:absolute;right:10px;bottom:10px;width:36px;height:36px;border-radius:50%;border:0;background:var(--accent);color:#000;cursor:pointer;font-size:14px;" data-src="${(x.preview_url||"").replace(/"/g,"&quot;")}" aria-label="Preview">▶</button>` : "");
+      return `<div class="card">
+        <div class="img" style="position:relative">
+          <img src="${cover}" loading="lazy" onerror="this.onerror=null;this.src='${placeholder}';"/>
+          <div class="badge">${x.rank}</div>${preview}
+        </div>
+        <div class="meta">
+          <div class="t">${(x.artist_name||"").replace(/</g,"&lt;")}</div>
+          <div class="a">${(x.top_track_name||"").replace(/</g,"&lt;")}</div>
+        </div>
+      </div>`;
+    }).join("");
+  } else {
+    $("#genreGrid").innerHTML = items.map(x=>{
+      var cover = (x.album_image_url || placeholder);
+      return `<div class="card">
+        <div class="img">
+          <img src="${cover}" loading="lazy" onerror="this.onerror=null;this.src='${placeholder}';"/>
+          <div class="badge">${x.rank}</div>
+        </div>
+        <div class="meta">
+          <div class="t">${(x.album_name||"").replace(/</g,"&lt;")}</div>
+          <div class="a">${(x.artist_name||"").replace(/</g,"&lt;")}</div>
+        </div>
+      </div>`;
+    }).join("");
+  }
+}
 
-  $("#genreGrid").innerHTML = items.map(x=>`
-    <div class="card" onclick="alert('Open: ${x.title}')">
-      <div class="img">
-        <img src="${x.cover}" loading="lazy"/>
-        <div class="badge">${x.rank}</div>
-      </div>
-      <div class="meta">
-        <div class="t">${x.title}</div>
-        <div class="a">${x.artist}</div>
-      </div>
-    </div>
-  `).join("");
+function fetchAndRenderGenreGrid(){
+  var statusEl = document.getElementById("genreGridStatus");
+  if (!HAS_SERVER_GENRES) {
+    var genre = GENRES.find(g=>g.key===activeGenre);
+    var items = (genre&&genre.items) ? genre.items.filter(x=>x.type===activeGenreTab) : [];
+    var decade = $("#genreDecade").value;
+    if (decade !== "all") items = items.filter(x=>x.decade===decade);
+    renderGenreCards(items.map((x,i)=>({ rank: i+1, track_name: x.title, artist_name: x.artist, album_image_url: x.cover })), "songs");
+    if (statusEl) { statusEl.style.display = "none"; }
+    return;
+  }
+  if (statusEl) { statusEl.textContent = "加载中…"; statusEl.style.display = "block"; }
+  var decade = ($("#genreDecade")&&$("#genreDecade").value) ? $("#genreDecade").value : "all";
+  var type = activeGenreTab === "songs" ? "songs" : (activeGenreTab === "artists" ? "artists" : "albums");
+  var url = "{{ url_for('viewer_genre_chart') }}?genre=" + encodeURIComponent(activeGenre) + "&decade=" + encodeURIComponent(decade) + "&type=" + encodeURIComponent(type);
+  fetch(url)
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      var items = (data && data.items) ? data.items : [];
+      renderGenreCards(items, type);
+      if (statusEl) {
+        if (items.length === 0) { statusEl.textContent = "暂无数据"; statusEl.style.display = "block"; }
+        else statusEl.style.display = "none";
+      }
+    })
+    .catch(function(err){
+      renderGenreCards([], type);
+      if (statusEl) { statusEl.textContent = "加载失败"; statusEl.style.display = "block"; }
+    });
 }
 
 const gl = $("#genreList");
@@ -605,8 +670,24 @@ if (!HAS_SERVER_GENRES) {
     activeGenre = btn.dataset.genre;
     $$("#genreList .genrebtn").forEach(x=>x.classList.remove("active"));
     btn.classList.add("active");
-    renderGenreGrid();
+    fetchAndRenderGenreGrid();
   });
+} else {
+  // Server-rendered genre links: intercept click to avoid full reload and scroll to top
+  gl.addEventListener("click", function(e) {
+    var btn = e.target.closest(".genrebtn");
+    if (!btn || !btn.dataset.genre) return;
+    e.preventDefault();
+    activeGenre = btn.dataset.genre;
+    $$("#genreList .genrebtn").forEach(function(x){ x.classList.remove("active"); });
+    btn.classList.add("active");
+    var href = btn.getAttribute("href");
+    if (window.history && window.history.pushState && href) {
+      window.history.pushState({ genre: activeGenre }, "", href);
+    }
+    fetchAndRenderGenreGrid();
+  });
+  fetchAndRenderGenreGrid();
 }
 
 $("#genreTabs").addEventListener("click", e=>{
@@ -614,14 +695,14 @@ $("#genreTabs").addEventListener("click", e=>{
   $$("#genreTabs .tab").forEach(x=>x.classList.remove("active"));
   btn.classList.add("active");
   activeGenreTab = btn.dataset.tab;
-  renderGenreGrid();
+  fetchAndRenderGenreGrid();
 });
 
-$("#genreDecade").addEventListener("change", renderGenreGrid);
+$("#genreDecade").addEventListener("change", fetchAndRenderGenreGrid);
 
 // init
 renderTop("all");
-renderGenreGrid();
+fetchAndRenderGenreGrid();
 </script>
 </body>
 </html>
