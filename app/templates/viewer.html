@@ -491,7 +491,8 @@ const GENRES = [
   {key:"R&B", items:[]},
   {key:"Jazz", items:[]},
   {key:"Classical", items:[]},
-  {key:"Electronic", items:[]}
+  {key:"Electronic", items:[]},
+  {key:"Country", items:[]}
 ];
 
 const $ = (s)=>document.querySelector(s);
@@ -599,7 +600,7 @@ function renderGenreCards(items, type){
     }).join("");
   } else if (type === "artists") {
     $("#genreGrid").innerHTML = items.map(x=>{
-      var cover = placeholder;
+      var cover = (x.album_image_url || placeholder);
       var preview = (x.preview_url ? `<button type="button" class="preview-play" style="position:absolute;right:10px;bottom:10px;width:36px;height:36px;border-radius:50%;border:0;background:var(--accent);color:#000;cursor:pointer;font-size:14px;" data-src="${(x.preview_url||"").replace(/"/g,"&quot;")}" aria-label="Preview">▶</button>` : "");
       return `<div class="card">
         <div class="img" style="position:relative">
@@ -640,7 +641,7 @@ function fetchAndRenderGenreGrid(){
     if (statusEl) { statusEl.style.display = "none"; }
     return;
   }
-  if (statusEl) { statusEl.textContent = "加载中…"; statusEl.style.display = "block"; }
+  if (statusEl) { statusEl.textContent = "Loading…"; statusEl.style.display = "block"; }
   var decade = ($("#genreDecade")&&$("#genreDecade").value) ? $("#genreDecade").value : "all";
   var type = activeGenreTab === "songs" ? "songs" : (activeGenreTab === "artists" ? "artists" : "albums");
   var url = "{{ url_for('viewer_genre_chart') }}?genre=" + encodeURIComponent(activeGenre) + "&decade=" + encodeURIComponent(decade) + "&type=" + encodeURIComponent(type);
@@ -650,13 +651,13 @@ function fetchAndRenderGenreGrid(){
       var items = (data && data.items) ? data.items : [];
       renderGenreCards(items, type);
       if (statusEl) {
-        if (items.length === 0) { statusEl.textContent = "暂无数据"; statusEl.style.display = "block"; }
+        if (items.length === 0) { statusEl.textContent = "No data"; statusEl.style.display = "block"; }
         else statusEl.style.display = "none";
       }
     })
     .catch(function(err){
       renderGenreCards([], type);
-      if (statusEl) { statusEl.textContent = "加载失败"; statusEl.style.display = "block"; }
+      if (statusEl) { statusEl.textContent = "Failed to load"; statusEl.style.display = "block"; }
     });
 }
 

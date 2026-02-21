@@ -20,7 +20,8 @@ Viewer 各表排序/排名逻辑（/viewer 的 Song / Artist / Album Top Chart�
   - 排序：按专辑热度 DESC NULLS LAST，取前 10。
 
 - EXPLORE BY GENRES（/viewer 下半部分）
-  - API：GET /viewer/api/genre_chart?genre=Pop&decade=all&type=songs|artists|albums，逻辑与上述 Song/Artist/Album 一致，仅增加 genre 筛选（artist_genres.genre_name）且只返回 top 5。
+  - 歌曲/专辑/艺人 均按「最主流」genre 筛选，与 ETL 一致：歌曲/专辑用 track_genres（CSV 该 track 的 genre 列表第一个映射到 Big-7），艺人用 artist_primary_genre（该艺人热度最高且存在 track_genres 的曲目的 primary genre）。
+  - API：GET /viewer/api/genre_chart?genre=Pop&decade=all&type=songs|artists|albums，逻辑与上述 Song/Artist/Album 一致，genre 筛选：songs/albums 用 track_genres，artists 用 artist_primary_genre；只返回 top 5。
   - 前端保持现有排版，按所选 genre、decade、Songs/Artists/Albums 请求 API 并渲染 grid。
 """
 import os
@@ -46,7 +47,7 @@ app = Flask(__name__)
 app.secret_key = "dev-secret"
 
 # Big-7 categories (same as your ETL grouping output)
-BIG7 = ["Pop", "Rock", "Hip-Hop", "R&B", "Jazz", "Classical", "Electronic"]
+BIG7 = ["Pop", "Rock", "Hip-Hop", "R&B", "Jazz", "Classical", "Electronic", "Country"]
 
 # Tabs for Trend chart (mock)
 FEATURE_TABS = ["danceability", "energy", "valence",
@@ -302,11 +303,11 @@ def viewer_genre_chart():
                     t.track_id, t.track_name, t.popularity, t.preview_url,
                     ar.artist_name, al.album_name, al.album_image_url
                   FROM tracks t
+                  JOIN track_genres tg ON tg.track_id = t.track_id AND tg.genre_name = %(genre)s
                   JOIN track_artist ta ON ta.track_id = t.track_id
                   JOIN artists ar ON ar.artist_id = ta.artist_id
                   JOIN album_tracks at ON at.track_id = t.track_id
                   JOIN albums al ON al.album_id = at.album_id
-                  JOIN artist_genres ag ON ag.artist_id = ar.artist_id AND ag.genre_name = %(genre)s
                   WHERE t.status = 'approved'
                     AND (%(decade_start)s IS NULL OR (
                           al.release_date IS NOT NULL
@@ -338,11 +339,11 @@ def viewer_genre_chart():
             elif chart_type == "artists":
                 sql = """
                 WITH decade_tracks AS (
-                  SELECT t.track_id, t.track_name, t.preview_url, t.popularity, ar.artist_id, ar.artist_name
+                  SELECT t.track_id, t.track_name, t.preview_url, t.popularity, ar.artist_id, ar.artist_name, al.album_image_url
                   FROM tracks t
                   JOIN track_artist ta ON ta.track_id = t.track_id
                   JOIN artists ar ON ar.artist_id = ta.artist_id
-                  JOIN artist_genres ag ON ag.artist_id = ar.artist_id AND ag.genre_name = %(genre)s
+                  JOIN artist_primary_genre apg ON apg.artist_id = ar.artist_id AND apg.genre_name = %(genre)s
                   JOIN album_tracks at ON at.track_id = t.track_id
                   JOIN albums al ON al.album_id = at.album_id
                   WHERE t.status = 'approved'
@@ -353,17 +354,20 @@ def viewer_genre_chart():
                     ))
                 ),
                 ranked AS (
-                  SELECT artist_id, artist_name, track_name, preview_url,
+                  SELECT artist_id, artist_name, track_name, preview_url, album_image_url,
                          ROW_NUMBER() OVER (PARTITION BY artist_id ORDER BY popularity DESC NULLS LAST) AS rn
                   FROM decade_tracks
                 ),
                 artist_score AS (
                   SELECT artist_id, SUM(popularity)::numeric AS score FROM decade_tracks GROUP BY artist_id
+                ),
+                one_per_artist AS (
+                  SELECT DISTINCT ON (artist_id) artist_id, artist_name, track_name, preview_url, album_image_url
+                  FROM ranked WHERE rn = 1 ORDER BY artist_id
                 )
-                SELECT r.artist_name, r.track_name, r.preview_url
-                FROM ranked r
-                JOIN artist_score s ON s.artist_id = r.artist_id
-                WHERE r.rn = 1
+                SELECT o.artist_name, o.track_name, o.preview_url, o.album_image_url
+                FROM one_per_artist o
+                JOIN artist_score s ON s.artist_id = o.artist_id
                 ORDER BY s.score DESC NULLS LAST
                 LIMIT 5;
                 """
@@ -375,6 +379,7 @@ def viewer_genre_chart():
                         "artist_name": r[0],
                         "top_track_name": r[1],
                         "preview_url": r[2],
+                        "album_image_url": r[3],
                     }
                     for i, r in enumerate(rows)
                 ]
@@ -395,8 +400,7 @@ def viewer_genre_chart():
                     ))
                     AND EXISTS (
                       SELECT 1 FROM album_tracks at2
-                      JOIN track_artist ta2 ON ta2.track_id = at2.track_id
-                      JOIN artist_genres ag ON ag.artist_id = ta2.artist_id AND ag.genre_name = %(genre)s
+                      JOIN track_genres tg ON tg.track_id = at2.track_id AND tg.genre_name = %(genre)s
                       WHERE at2.album_id = a.album_id
                     )
                   GROUP BY a.album_id, a.album_name, a.album_image_url
@@ -408,7 +412,6 @@ def viewer_genre_chart():
                   JOIN tracks t ON t.track_id = at.track_id
                   JOIN track_artist ta ON ta.track_id = t.track_id
                   JOIN artists ar ON ar.artist_id = ta.artist_id
-                  JOIN artist_genres ag ON ag.artist_id = ar.artist_id AND ag.genre_name = %(genre)s
                   WHERE t.status = 'approved'
                     AND (%(decade_start)s IS NULL OR (
                           a.release_date IS NOT NULL

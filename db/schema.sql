@@ -1,6 +1,8 @@
 -- db/schema.sql
 DROP TABLE IF EXISTS album_tracks CASCADE;
 DROP TABLE IF EXISTS track_artist CASCADE;
+DROP TABLE IF EXISTS track_genres CASCADE;
+DROP TABLE IF EXISTS artist_primary_genre CASCADE;
 DROP TABLE IF EXISTS artist_genres CASCADE;
 DROP TABLE IF EXISTS audio_features CASCADE;
 DROP TABLE IF EXISTS tracks CASCADE;
@@ -64,6 +66,18 @@ CREATE TABLE artist_genres (
   artist_id VARCHAR(64) NOT NULL REFERENCES artists(artist_id) ON DELETE CASCADE,
   genre_name VARCHAR(120) NOT NULL,
   PRIMARY KEY (artist_id, genre_name)
+);
+
+-- 每 artist 仅一行：该艺人「最主流」Big-7，取该艺人热度最高且存在 track_genres 的那首曲目的 primary genre，与 song/album 一致
+CREATE TABLE artist_primary_genre (
+  artist_id VARCHAR(64) PRIMARY KEY REFERENCES artists(artist_id) ON DELETE CASCADE,
+  genre_name VARCHAR(120) NOT NULL
+);
+
+-- 每 track 仅一行：取 CSV 中该 track 的 genre 列表「第一个」映射到 Big-7，用于歌曲/专辑按最主流 genre 筛选
+CREATE TABLE track_genres (
+  track_id VARCHAR(64) PRIMARY KEY REFERENCES tracks(track_id) ON DELETE CASCADE,
+  genre_name VARCHAR(120) NOT NULL
 );
 
 CREATE TABLE audio_features (

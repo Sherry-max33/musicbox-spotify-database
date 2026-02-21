@@ -8,13 +8,20 @@ Genre 分类映射规则（Big-7）
 Viewer 的「EXPLORE BY GENRES」按这 7 类筛选。
 
 - 匹配方式：对每个细分类字符串做 strip + lower，若其「包含」某类的任一关键词，则归入该类。
-- 优先级：按 GENRE_GROUPS 字典顺序，先匹配到的类优先（Pop → Rock → Hip-Hop → R&B → Jazz → Classical → Electronic）。
+- 优先级：按 GENRE_GROUPS 字典顺序，先匹配到的类优先（Country → Pop → Rock → …）。
 - 特例：
   - "hiphop"（无连字符）单独判为 Hip-Hop。
   - Electronic：不含 "edm"、泛 "house"，避免流行/舞曲艺人误入电音；若细分类为 tropical / dance pop / pop dance / edm，即使命中 Electronic 关键词也不归入 Electronic。
 
-7 类及关键词（详见下方 GENRE_GROUPS）：
-  Pop, Rock, Hip-Hop, R&B, Jazz, Classical, Electronic.
+8 类及关键词（详见下方 GENRE_GROUPS）：
+  Country, Pop, Rock, Hip-Hop, R&B, Jazz, Classical, Electronic。
+
+歌曲/专辑/艺人的「最主流」genre（track_genres + artist_primary_genre）
+---------------------------------------------------------------------
+- 歌曲/专辑：只取 CSV 中该 track 的 genre 列表的「第一个」项映射到 Big-7，写入 track_genres（每 track 一行）。Viewer 的 EXPLORE BY GENRES 按此筛选。
+- 艺人：与 song/album 一致，也只归入一个最主流 Big-7：取该艺人「热度最高」且存在 track_genres 的曲目的 primary genre，写入 artist_primary_genre（每艺人一行）。Viewer 的 EXPLORE BY GENRES 艺人 tab 按此筛选。
+- 例如 "dance pop, pop, urban contemporary, r&b" → 只取 "dance pop" → Pop，该曲/该艺人在该曲下的主 genre 只在 Pop 下出现。
+- artist_genres 仍写入（explode 全部细分类映射），供 Analyst 等使用；EXPLORE BY GENRES 的艺人筛选用 artist_primary_genre。
 """
 import argparse
 import os
@@ -200,8 +207,9 @@ def safe_smallint(x, minv=None, maxv=None):
 
 
 # ---------- genre grouping (7 big categories) ----------
-# 规则：细分类字符串包含某类任一关键词即归入该类；顺序即优先级。详见文件顶部 docstring。
+# 规则：细分类字符串包含某类任一关键词即归入该类；顺序即优先级。Country 放前，使 "country pop" 等归入 Country。
 GENRE_GROUPS = {
+    "Country": ["country"],
     "Pop": ["pop", "k-pop", "kpop", "j-pop", "jpop", "dance pop", "electropop", "indie pop", "teen pop"],
     "Rock": ["rock", "alt rock", "alternative", "indie rock", "hard rock", "classic rock", "punk", "metal", "grunge", "emo"],
     "Hip-Hop": ["hip hop", "hip-hop", "rap", "trap", "drill"],
@@ -448,6 +456,42 @@ def main():
     )
 
     # -----------------------
+    # TRACK_GENRES (每 track 仅一个 Big-7：取 CSV 中该 track 的 genre 列表「第一个」映射，用于歌曲/专辑最主流 genre)
+    # -----------------------
+    track_genres_rows = []
+    if c_genres:
+        track_to_genres = df.set_index("track_id_norm")[c_genres].to_dict()
+        for tid in df["track_id_norm"].drop_duplicates().tolist():
+            gval = track_to_genres.get(tid, None)
+            parts = split_multi(gval)
+            if not parts:
+                continue
+            first_genre = re.sub(r"\s+", " ", parts[0].strip().lower())[:120]
+            if not first_genre:
+                continue
+            g_group = map_genre_to_group(first_genre)
+            if g_group:
+                track_genres_rows.append((tid, g_group))
+    track_genres = (
+        pd.DataFrame(track_genres_rows, columns=["track_id", "genre_name"]).drop_duplicates(subset=["track_id"], keep="first")
+        if track_genres_rows else pd.DataFrame(columns=["track_id", "genre_name"])
+    )
+
+    # -----------------------
+    # ARTIST_PRIMARY_GENRE（每艺人仅一个 Big-7：取该艺人「热度最高」且存在 track_genres 的曲目的 primary genre，与 song/album 一致）
+    # -----------------------
+    if len(track_genres) > 0 and len(track_artist) > 0 and "popularity" in tracks.columns:
+        apg = track_artist.merge(track_genres, on="track_id").merge(
+            tracks[["track_id", "popularity"]], on="track_id"
+        )
+        apg = apg.sort_values(["artist_id", "popularity"], ascending=[True, False]).drop_duplicates(
+            subset=["artist_id"], keep="first"
+        )
+        artist_primary_genre = apg[["artist_id", "genre_name"]].copy()
+    else:
+        artist_primary_genre = pd.DataFrame(columns=["artist_id", "genre_name"])
+
+    # -----------------------
     # AUDIO_FEATURES
     # -----------------------
     have_audio = any(v is not None for v in audio_cols.values())
@@ -491,6 +535,8 @@ def main():
         print("track_artist:", list(track_artist.columns))
         print("album_tracks:", list(album_tracks.columns))
         print("artist_genres:", list(artist_genres.columns))
+        print("track_genres:", list(track_genres.columns))
+        print("artist_primary_genre:", list(artist_primary_genre.columns))
         print("audio_features:", list(audio_features.columns))
         return
 
@@ -596,12 +642,39 @@ def main():
             page_size=5000
         )
 
-        # artist_genres
+        # artist_genres（先清空再写入，避免旧映射残留，如曾误标 Electronic 的艺人）
+        cur.execute("TRUNCATE TABLE artist_genres")
         if len(artist_genres) > 0:
             execute_values(
                 cur,
                 "INSERT INTO artist_genres (artist_id, genre_name) VALUES %s ON CONFLICT DO NOTHING",
                 list(artist_genres.itertuples(index=False, name=None)),
+                page_size=5000
+            )
+
+        # artist_primary_genre（艺人也用最主流 genre：取该艺人热度最高曲目的 primary genre，与 song/album 一致）
+        cur.execute(
+            "CREATE TABLE IF NOT EXISTS artist_primary_genre (artist_id VARCHAR(64) PRIMARY KEY REFERENCES artists(artist_id) ON DELETE CASCADE, genre_name VARCHAR(120) NOT NULL)"
+        )
+        cur.execute("TRUNCATE TABLE artist_primary_genre")
+        if len(artist_primary_genre) > 0:
+            execute_values(
+                cur,
+                "INSERT INTO artist_primary_genre (artist_id, genre_name) VALUES %s ON CONFLICT (artist_id) DO UPDATE SET genre_name = EXCLUDED.genre_name",
+                list(artist_primary_genre.itertuples(index=False, name=None)),
+                page_size=5000
+            )
+
+        # track_genres（先建表再清空再写入；one primary Big-7 per track, from first genre in CSV）
+        if len(track_genres) > 0:
+            cur.execute(
+                "CREATE TABLE IF NOT EXISTS track_genres (track_id VARCHAR(64) PRIMARY KEY REFERENCES tracks(track_id) ON DELETE CASCADE, genre_name VARCHAR(120) NOT NULL)"
+            )
+            cur.execute("TRUNCATE TABLE track_genres")
+            execute_values(
+                cur,
+                "INSERT INTO track_genres (track_id, genre_name) VALUES %s ON CONFLICT (track_id) DO UPDATE SET genre_name = EXCLUDED.genre_name",
+                list(track_genres.itertuples(index=False, name=None)),
                 page_size=5000
             )
 
@@ -637,7 +710,7 @@ def main():
         conn.commit()
         print("✅ ETL completed.")
         print(f"Artists: {len(artists)} | Albums: {len(albums)} | Tracks: {len(tracks)}")
-        print(f"Track_Artist: {len(track_artist)} | Album_Tracks: {len(album_tracks)} | Artist_Genres(rows): {len(artist_genres)}")
+        print(f"Track_Artist: {len(track_artist)} | Album_Tracks: {len(album_tracks)} | Artist_Genres(rows): {len(artist_genres)} | Artist_Primary_Genre: {len(artist_primary_genre)} | Track_Genres: {len(track_genres)}")
         print(f"Audio_Features: {len(audio_features) if have_audio else 0}")
 
     except Exception:
