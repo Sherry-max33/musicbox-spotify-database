@@ -23,11 +23,24 @@ Viewer 各表排序/排名逻辑（/viewer 的 Song / Artist / Album Top Chart�
   - 歌曲/专辑/艺人 均按「最主流」genre 筛选，与 ETL 一致：歌曲/专辑用 track_genres（CSV 该 track 的 genre 列表第一个映射到 Big-7），艺人用 artist_primary_genre（该艺人热度最高且存在 track_genres 的曲目的 primary genre）。
   - API：GET /viewer/api/genre_chart?genre=Pop&decade=all&type=songs|artists|albums，逻辑与上述 Song/Artist/Album 一致，genre 筛选：songs/albums 用 track_genres，artists 用 artist_primary_genre；只返回 top 5。
   - 前端保持现有排版，按所选 genre、decade、Songs/Artists/Albums 请求 API 并渲染 grid。
+
+- 歌手页 /artist?artist_id=xxx
+  - 与 Viewer Artist 一致：总热度 = SUM(popularity)（该艺人所有曲目，同一首歌在不同专辑出现多次则算多次）；Rank = 全库艺人按该 SUM 降序排名。
+  - 右上角：第一行显示 # {rank}，第二行显示 Popularity {total_popularity}。TOP TRACKS、ALBUMS 由后端查询渲染。
 """
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 import psycopg2
 from dotenv import load_dotenv
+import requests
+
+try:
+    import cv2
+    import numpy as np
+    _FACE_DETECT_AVAILABLE = True
+except Exception:
+    cv2 = np = None
+    _FACE_DETECT_AVAILABLE = False
 
 load_dotenv()
 
@@ -66,6 +79,45 @@ def fetchone_dict(cur, columns):
     if not row:
         return None
     return {columns[i]: row[i] for i in range(len(columns))}
+
+
+# 歌手页 hero 背景：按专辑图人脸位置计算 background-position（缓存按 URL）
+_hero_focus_cache = {}
+
+
+def get_face_focus(image_url, timeout=4):
+    """根据专辑图检测人脸，返回 CSS background-position 百分比，使人脸落在视区内。无脸或失败返回 None。"""
+    if not _FACE_DETECT_AVAILABLE or not image_url or not image_url.startswith("http"):
+        return None
+    if image_url in _hero_focus_cache:
+        return _hero_focus_cache[image_url]
+    try:
+        r = requests.get(image_url, timeout=timeout)
+        r.raise_for_status()
+        arr = np.frombuffer(r.content, dtype=np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if img is None:
+            _hero_focus_cache[image_url] = None
+            return None
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+        face_cascade = cv2.CascadeClassifier(cascade_path)
+        faces = face_cascade.detectMultiScale(
+            gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)
+        )
+        if len(faces) == 0:
+            _hero_focus_cache[image_url] = None
+            return None
+        x, y, w, h = max(faces, key=lambda r: r[2] * r[3])
+        cx = (x + w / 2) / img.shape[1]
+        cy = (y + h / 2) / img.shape[0]
+        # 使人脸中心对应到视区相对位置，便于统一裁切
+        out = f"{cx*100:.1f}% {cy*100:.1f}%"
+        _hero_focus_cache[image_url] = out
+        return out
+    except Exception:
+        _hero_focus_cache[image_url] = None
+        return None
 
 
 # =========================
@@ -451,6 +503,7 @@ def viewer_genre_chart():
 @app.route("/analyst", methods=["GET"])
 def analyst():
     genre = request.args.get("genre", "").strip()
+    trend_genre = request.args.get("trend_genre", genre).strip()
     feature = request.args.get("feature", "danceability").strip()
 
     if feature not in FEATURE_TABS:
@@ -458,6 +511,8 @@ def analyst():
 
     if genre and genre not in BIG7:
         genre = ""
+    if trend_genre and trend_genre not in BIG7:
+        trend_genre = genre
 
     genres_sql = """
     SELECT genre_name
@@ -538,10 +593,22 @@ def analyst():
     ORDER BY decade;
     """
 
+    summary = {}
+    radar_data = {}
+    radar_points_str = "300,250 300,250 300,250 300,250 300,250 300,250"
+    radar_points_str_all = "300,250 300,250 300,250 300,250 300,250 300,250"
+    duration_fmt = "—"
+    genres = BIG7[:]
+    genre_mix = []
+    trend_data = []
+    trend_data_all = []
+
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(genres_sql, (BIG7,))
-            genres = [r[0] for r in cur.fetchall()] or BIG7[:]
+            db_genres = [r[0] for r in cur.fetchall()]
+            # 与 viewer 下方顺序一致：按 BIG7 顺序
+            genres = [g for g in BIG7 if g in db_genres] if db_genres else list(BIG7)
 
             cur.execute(summary_sql, (BIG7, genre, genre))
             summary_cols = [
@@ -559,9 +626,67 @@ def analyst():
                 "loudness": summary.get("loudness"),
                 "duration_ms": summary.get("duration_ms"),
             }
+            dur_ms = summary.get("duration_ms")
+            if dur_ms is not None:
+                try:
+                    s = int(float(dur_ms))
+                    duration_fmt = "%d:%02d" % (s // 60000, (s % 60000) // 1000)
+                except (TypeError, ValueError):
+                    duration_fmt = "—"
+            else:
+                duration_fmt = "—"
+            # 雷达图 6 轴顺序：danceability, energy, valence, acousticness, tempo, loudness；值归一化 0–1
+            def norm_tempo(v):
+                if v is None:
+                    return 0
+                return max(0, min(1, (float(v) - 50) / 150))
+
+            def norm_loudness(v):
+                if v is None:
+                    return 0
+                return max(0, min(1, (float(v) + 60) / 60))
+
+            radar_values = [
+                float(summary.get("danceability") or 0),
+                float(summary.get("energy") or 0),
+                float(summary.get("valence") or 0),
+                float(summary.get("acousticness") or 0),
+                norm_tempo(summary.get("tempo")),
+                norm_loudness(summary.get("loudness")),
+            ]
+            import math
+            cx, cy, r = 300, 250, 180
+            radar_points = []
+            for i, v in enumerate(radar_values):
+                rad = i * 60 * math.pi / 180
+                x = cx + r * v * math.sin(rad)
+                y = cy - r * v * math.cos(rad)
+                radar_points.append("%.1f,%.1f" % (x, y))
+            radar_points_str = " ".join(radar_points)
+
+            # All 作为 benchmark：无 genre 筛选的 summary，浅红显示
+            cur.execute(summary_sql, (BIG7, "", ""))
+            summary_all = fetchone_dict(cur, summary_cols) or {}
+            radar_values_all = [
+                float(summary_all.get("danceability") or 0),
+                float(summary_all.get("energy") or 0),
+                float(summary_all.get("valence") or 0),
+                float(summary_all.get("acousticness") or 0),
+                norm_tempo(summary_all.get("tempo")),
+                norm_loudness(summary_all.get("loudness")),
+            ]
+            radar_points_all = []
+            for i, v in enumerate(radar_values_all):
+                rad = i * 60 * math.pi / 180
+                x = cx + r * v * math.sin(rad)
+                y = cy - r * v * math.cos(rad)
+                radar_points_all.append("%.1f,%.1f" % (x, y))
+            radar_points_str_all = " ".join(radar_points_all)
 
             cur.execute(mix_sql, (BIG7,))
             mix_rows = cur.fetchall()
+            genre_mix = []
+            trend_data = []
 
             mix_by_decade = {}
             for decade_int, g, cnt in mix_rows:
@@ -572,7 +697,6 @@ def analyst():
                 if g in mix_by_decade[dlab]:
                     mix_by_decade[dlab][g] += int(cnt)
 
-            genre_mix = []
             for dlab in sorted(mix_by_decade.keys(), key=lambda x: int(x[:-1])):
                 counts = mix_by_decade[dlab]
                 total = sum(counts.values())
@@ -585,11 +709,25 @@ def analyst():
                         row[g] = round(counts[g] / total, 4)
                 genre_mix.append(row)
 
-            cur.execute(trend_sql, (BIG7, genre, genre))
+            cur.execute(trend_sql, (BIG7, trend_genre, trend_genre))
             trend_rows = cur.fetchall()
             trend_data = []
             for r in trend_rows:
                 trend_data.append({
+                    "decade": decade_label(r[0]),
+                    "danceability": float(r[1]) if r[1] is not None else None,
+                    "energy": float(r[2]) if r[2] is not None else None,
+                    "valence": float(r[3]) if r[3] is not None else None,
+                    "acousticness": float(r[4]) if r[4] is not None else None,
+                    "tempo": float(r[5]) if r[5] is not None else None,
+                    "loudness": float(r[6]) if r[6] is not None else None,
+                    "duration_ms": float(r[7]) if r[7] is not None else None,
+                })
+            cur.execute(trend_sql, (BIG7, "", ""))
+            trend_all_rows = cur.fetchall()
+            trend_data_all = []
+            for r in trend_all_rows:
+                trend_data_all.append({
                     "decade": decade_label(r[0]),
                     "danceability": float(r[1]) if r[1] is not None else None,
                     "energy": float(r[2]) if r[2] is not None else None,
@@ -604,36 +742,528 @@ def analyst():
         "analyst.html",
         genres=genres,
         genre=genre,
+        trend_genre=trend_genre,
         active_feature=feature,
+        feature_tabs=FEATURE_TABS,
         summary=summary,
         radar_data=radar_data,
+        radar_points_str=radar_points_str,
+        radar_points_str_all=radar_points_str_all,
+        duration_fmt=duration_fmt,
         genre_mix=genre_mix,
         trend_data=trend_data,
+        trend_data_all=trend_data_all,
     )
 
 
+@app.route("/analyst/api/trend_data", methods=["GET"])
+def analyst_api_trend_data():
+    """Return trend_data JSON for a given trend_genre (no page reload)."""
+    trend_genre = request.args.get("trend_genre", "").strip()
+    if trend_genre and trend_genre not in BIG7:
+        trend_genre = ""
+    base_cte = f"""
+    WITH base AS (
+      SELECT DISTINCT
+        t.track_id,
+        (FLOOR(EXTRACT(YEAR FROM a.release_date)/10)*10)::int AS decade,
+        t.duration_ms,
+        af.danceability,
+        af.energy,
+        af.valence,
+        af.acousticness,
+        af.tempo,
+        af.loudness,
+        (
+          SELECT MIN(ag2.genre_name)
+          FROM track_artist ta2
+          JOIN artist_genres ag2 ON ag2.artist_id = ta2.artist_id
+          WHERE ta2.track_id = t.track_id
+            AND ag2.genre_name = ANY(%s)
+        ) AS genre_group
+      FROM tracks t
+      JOIN audio_features af ON af.track_id = t.track_id
+      JOIN album_tracks at ON at.track_id = t.track_id
+      JOIN albums a ON a.album_id = at.album_id
+      WHERE t.status='approved'
+        AND a.release_date IS NOT NULL
+    )
+    """
+    trend_sql = base_cte + """
+    SELECT
+      decade,
+      ROUND(AVG(danceability)::numeric, 3) AS danceability,
+      ROUND(AVG(energy)::numeric, 3)       AS energy,
+      ROUND(AVG(valence)::numeric, 3)      AS valence,
+      ROUND(AVG(acousticness)::numeric, 3) AS acousticness,
+      ROUND(AVG(tempo)::numeric, 2)        AS tempo,
+      ROUND(AVG(loudness)::numeric, 2)     AS loudness,
+      ROUND(AVG(duration_ms)::numeric, 0)  AS duration_ms
+    FROM base
+    WHERE genre_group IS NOT NULL
+      AND (%s = '' OR genre_group = %s)
+    GROUP BY decade
+    ORDER BY decade;
+    """
+    trend_data = []
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(trend_sql, (BIG7, trend_genre, trend_genre))
+            for r in cur.fetchall():
+                trend_data.append({
+                    "decade": decade_label(r[0]),
+                    "danceability": float(r[1]) if r[1] is not None else None,
+                    "energy": float(r[2]) if r[2] is not None else None,
+                    "valence": float(r[3]) if r[3] is not None else None,
+                    "acousticness": float(r[4]) if r[4] is not None else None,
+                    "tempo": float(r[5]) if r[5] is not None else None,
+                    "loudness": float(r[6]) if r[6] is not None else None,
+                    "duration_ms": float(r[7]) if r[7] is not None else None,
+                })
+    return jsonify(trend_data)
+
+
+@app.route("/analyst/api/decade_tracks", methods=["GET"])
+def analyst_api_decade_tracks():
+    """Return list of tracks for a given decade and genre (track_name, duration_ms, duration_fmt)."""
+    trend_genre = request.args.get("trend_genre", "").strip()
+    decade_param = request.args.get("decade", "2020").strip()
+    if trend_genre and trend_genre not in BIG7:
+        trend_genre = ""
+    try:
+        decade_int = int(decade_param)
+    except ValueError:
+        decade_int = 2020
+    base_cte = f"""
+    WITH base AS (
+      SELECT DISTINCT
+        t.track_id,
+        t.track_name,
+        t.duration_ms,
+        (FLOOR(EXTRACT(YEAR FROM a.release_date)/10)*10)::int AS decade,
+        (
+          SELECT MIN(ag2.genre_name)
+          FROM track_artist ta2
+          JOIN artist_genres ag2 ON ag2.artist_id = ta2.artist_id
+          WHERE ta2.track_id = t.track_id
+            AND ag2.genre_name = ANY(%s)
+        ) AS genre_group
+      FROM tracks t
+      JOIN album_tracks at ON at.track_id = t.track_id
+      JOIN albums a ON a.album_id = at.album_id
+      WHERE t.status='approved'
+        AND a.release_date IS NOT NULL
+    )
+    """
+    sql = base_cte + """
+    SELECT track_name, duration_ms
+    FROM base
+    WHERE genre_group IS NOT NULL AND decade = %s AND (%s = '' OR genre_group = %s)
+    ORDER BY duration_ms ASC NULLS LAST, track_name;
+    """
+    out = []
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (BIG7, decade_int, trend_genre, trend_genre))
+            for name, dur_ms in cur.fetchall():
+                if dur_ms is not None:
+                    try:
+                        s = int(float(dur_ms))
+                        fmt = "%d:%02d" % (s // 60000, (s % 60000) // 1000)
+                    except (TypeError, ValueError):
+                        fmt = "—"
+                else:
+                    fmt = "—"
+                out.append({"track_name": name or "—", "duration_ms": dur_ms, "duration_fmt": fmt})
+    return jsonify(out)
+
+
 # -------------------------
-# Admin (unchanged)
+# Admin
 # -------------------------
-@app.route("/admin/login", methods=["GET"])
+@app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
+    if request.method == "POST":
+        # 可在此接入真实校验与 session
+        return redirect(url_for("admin"))
     return render_template("admin_login.html")
+
+
+def _admin_users(cur):
+    cur.execute(
+        "SELECT user_id, email, role, is_active FROM users ORDER BY email"
+    )
+    return [
+        {"user_id": r[0], "email": r[1], "role": r[2], "is_active": r[3]}
+        for r in cur.fetchall()
+    ]
+
+
+def _admin_pending(cur):
+    out = []
+    cur.execute("""
+        SELECT t.track_id, t.track_name, t.submitted_by, u.email
+        FROM tracks t
+        LEFT JOIN users u ON u.user_id = t.submitted_by
+        WHERE t.status = 'pending'
+        ORDER BY t.track_id
+    """)
+    for r in cur.fetchall():
+        out.append({
+            "type": "track",
+            "id": r[0],
+            "title": "Track: " + (r[1] or ""),
+            "submitted_by": r[3] or "—",
+        })
+    cur.execute("""
+        SELECT a.album_id, a.album_name, a.submitted_by, u.email
+        FROM albums a
+        LEFT JOIN users u ON u.user_id = a.submitted_by
+        WHERE a.status = 'pending'
+        ORDER BY a.album_id
+    """)
+    for r in cur.fetchall():
+        out.append({
+            "type": "album",
+            "id": r[0],
+            "title": "Album: " + (r[1] or ""),
+            "submitted_by": r[3] or "—",
+        })
+    cur.execute("""
+        SELECT a.artist_id, a.artist_name, a.submitted_by, u.email
+        FROM artists a
+        LEFT JOIN users u ON u.user_id = a.submitted_by
+        WHERE a.status = 'pending'
+        ORDER BY a.artist_id
+    """)
+    for r in cur.fetchall():
+        out.append({
+            "type": "artist",
+            "id": r[0],
+            "title": "Artist: " + (r[1] or ""),
+            "submitted_by": r[3] or "—",
+        })
+    return out
 
 
 @app.route("/admin", methods=["GET"])
 def admin():
-    return render_template("admin_panel.html")
+    users = []
+    pending = []
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            users = _admin_users(cur)
+            pending = _admin_pending(cur)
+    return render_template(
+        "admin_panel.html",
+        users=users,
+        pending=pending,
+    )
+
+
+@app.route("/admin/user/update", methods=["POST"])
+def admin_user_update():
+    user_id = request.form.get("user_id", "").strip()
+    role = request.form.get("role", "").strip()
+    is_active = request.form.get("is_active", "").strip()
+    if not user_id or role not in ("admin", "analyst"):
+        flash("Invalid user or role.")
+        return redirect(url_for("admin"))
+    active = is_active.lower() in ("1", "true", "active", "on")
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET role = %s, is_active = %s WHERE user_id = %s",
+                (role, active, int(user_id)),
+            )
+            conn.commit()
+    flash("User updated.")
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/review", methods=["POST"])
+def admin_review():
+    action = request.form.get("action", "").strip()
+    item_type = request.form.get("type", "").strip()
+    item_id = request.form.get("id", "").strip()
+    if action not in ("approve", "reject") or item_type not in ("track", "album", "artist"):
+        flash("Invalid action or type.")
+        return redirect(url_for("admin"))
+    table = {"track": "tracks", "album": "albums", "artist": "artists"}[item_type]
+    pk = {"track": "track_id", "album": "album_id", "artist": "artist_id"}[item_type]
+    status = "approved" if action == "approve" else "rejected"
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE {table} SET status = %s, reviewed_by = NULL WHERE {pk} = %s",
+                (status, item_id),
+            )
+            conn.commit()
+    flash(f"Item {action}d.")
+    return redirect(url_for("admin"))
 
 
 @app.route("/artist", methods=["GET"])
 def artist():
-    return render_template("artist.html")
+    artist_id = request.args.get("artist_id", "").strip()
+    if not artist_id:
+        return render_template(
+            "artist.html",
+            artist_id=None,
+            artist_name=None,
+            total_popularity=None,
+            rank=None,
+            tracks=[],
+            albums=[],
+            hero_cover=None,
+            hero_focus=None,
+        )
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # 与 viewer Artist 一致：SUM(popularity)，同一首歌在不同专辑出现多次则算多次；全库不按 decade 筛
+            cur.execute(
+                """
+                WITH artist_tracks AS (
+                  SELECT t.track_id, t.track_name, t.preview_url, t.popularity,
+                         al.album_name, al.album_image_url
+                  FROM tracks t
+                  JOIN track_artist ta ON ta.track_id = t.track_id
+                  JOIN album_tracks at ON at.track_id = t.track_id
+                  JOIN albums al ON al.album_id = at.album_id
+                  WHERE ta.artist_id = %(artist_id)s AND t.status = 'approved'
+                ),
+                artist_score AS (
+                  SELECT SUM(popularity)::int AS total FROM artist_tracks
+                ),
+                all_scores AS (
+                  SELECT ar.artist_id, SUM(t.popularity)::numeric AS score
+                  FROM tracks t
+                  JOIN track_artist ta ON ta.track_id = t.track_id
+                  JOIN artists ar ON ar.artist_id = ta.artist_id
+                  JOIN album_tracks at ON at.track_id = t.track_id
+                  JOIN albums al ON al.album_id = at.album_id
+                  WHERE t.status = 'approved'
+                  GROUP BY ar.artist_id
+                ),
+                ranked AS (
+                  SELECT artist_id, ROW_NUMBER() OVER (ORDER BY score DESC NULLS LAST) AS rn
+                  FROM all_scores
+                )
+                SELECT
+                  (SELECT artist_name FROM artists WHERE artist_id = %(artist_id)s),
+                  (SELECT total FROM artist_score),
+                  (SELECT rn FROM ranked WHERE artist_id = %(artist_id)s);
+                """,
+                {"artist_id": artist_id},
+            )
+            row = cur.fetchone()
+            if not row or row[0] is None:
+                return render_template(
+                    "artist.html",
+                    artist_id=artist_id,
+                    artist_name=None,
+                    total_popularity=None,
+                    rank=None,
+                    tracks=[],
+                    albums=[],
+                    hero_cover=None,
+                    hero_focus=None,
+                )
+            artist_name, total_popularity, rank = row[0], row[1], row[2]
+
+            # Top tracks: 该艺人所有曲目按 popularity 降序，取每曲一行（多专辑则多行，取其一用 DISTINCT ON track_id 取 popularity 最高的一行）
+            cur.execute(
+                """
+                SELECT DISTINCT ON (t.track_id)
+                  t.track_name, al.album_name, al.album_image_url, t.popularity, t.preview_url
+                FROM tracks t
+                JOIN track_artist ta ON ta.track_id = t.track_id
+                JOIN album_tracks at ON at.track_id = t.track_id
+                JOIN albums al ON al.album_id = at.album_id
+                WHERE ta.artist_id = %(artist_id)s AND t.status = 'approved'
+                ORDER BY t.track_id, t.popularity DESC NULLS LAST
+                """,
+                {"artist_id": artist_id},
+            )
+            track_rows = cur.fetchall()
+            # 按 popularity 降序排，取前 10
+            tracks = sorted(
+                [{"track_name": r[0], "album_name": r[1], "album_image_url": r[2], "popularity": r[3], "preview_url": r[4]} for r in track_rows],
+                key=lambda x: (x["popularity"] or 0),
+                reverse=True,
+            )[:10]
+
+            # Albums: 该艺人参与过的专辑
+            cur.execute(
+                """
+                SELECT DISTINCT a.album_id, a.album_name, a.release_date, a.album_image_url
+                FROM albums a
+                JOIN album_tracks at ON at.album_id = a.album_id
+                JOIN track_artist ta ON ta.track_id = at.track_id
+                WHERE ta.artist_id = %(artist_id)s AND a.status = 'approved'
+                ORDER BY a.release_date DESC NULLS LAST, a.album_name
+                """,
+                {"artist_id": artist_id},
+            )
+            album_rows = cur.fetchall()
+            albums_raw = [
+                {
+                    "album_id": r[0],
+                    "album_name": r[1],
+                    "release_date": str(r[2])[:4] if r[2] else None,
+                    "album_image_url": r[3],
+                }
+                for r in album_rows
+            ]
+            # 按专辑名+年份去重，同一张专辑（同名同年版/豪华版等）只显示一张（保留第一条，已按 release_date DESC）
+            seen_key = set()
+            albums = []
+            for a in albums_raw:
+                key = (a["album_name"] or "", a["release_date"] or "")
+                if key not in seen_key:
+                    seen_key.add(key)
+                    albums.append(a)
+
+            # 歌手页背景：用最新一张专辑的封面（albums 已按 release_date DESC 排序）
+            hero_cover = (albums[0]["album_image_url"] if albums else None) or (tracks[0]["album_image_url"] if tracks else None)
+            # 自动人脸检测，使人脸落在 hero 裁切区内；无脸或失败则用默认居中
+            hero_focus = get_face_focus(hero_cover) if hero_cover else None
+
+    return render_template(
+        "artist.html",
+        artist_id=artist_id,
+        artist_name=artist_name,
+        total_popularity=total_popularity,
+        rank=rank,
+        tracks=tracks,
+        albums=albums,
+        hero_cover=hero_cover,
+        hero_focus=hero_focus,
+    )
 
 
-@app.route("/analyst/edit", methods=["GET"])
+@app.route("/analyst/edit/api/search_artists", methods=["GET"])
+def analyst_edit_search_artists():
+    q = (request.args.get("q") or "").strip()[:80]
+    if not q:
+        return jsonify([])
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT artist_id, artist_name FROM artists
+                   WHERE status = 'approved' AND lower(artist_name) LIKE %s
+                   ORDER BY artist_name LIMIT 15""",
+                ("%" + q.lower() + "%",),
+            )
+            rows = cur.fetchall()
+    return jsonify([{"artist_id": r[0], "artist_name": r[1]} for r in rows])
+
+
+@app.route("/analyst/edit/api/search_albums", methods=["GET"])
+def analyst_edit_search_albums():
+    q = (request.args.get("q") or "").strip()[:80]
+    if not q:
+        return jsonify([])
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT album_id, album_name FROM albums
+                   WHERE status = 'approved' AND lower(album_name) LIKE %s
+                   ORDER BY album_name LIMIT 15""",
+                ("%" + q.lower() + "%",),
+            )
+            rows = cur.fetchall()
+    return jsonify([{"album_id": r[0], "album_name": r[1]} for r in rows])
+
+
+@app.route("/analyst/edit", methods=["GET", "POST"])
 def analyst_edit():
-    return render_template("analyst_edit.html")
+    track_id = request.args.get("track_id", "").strip() if request.method == "GET" else request.form.get("track_id", "").strip()
+
+    # POST: save or delete
+    if request.method == "POST":
+        if request.form.get("delete") == "1":
+            if track_id:
+                with get_conn() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("DELETE FROM tracks WHERE track_id = %s", (track_id,))
+                        conn.commit()
+                flash("Track deleted.")
+            return redirect(url_for("analyst"))
+        # Save
+        if not track_id:
+            flash("No track selected to save.")
+            return redirect(url_for("analyst"))
+        track_name = request.form.get("track_name", "").strip() or None
+        duration_ms = request.form.get("duration_ms", "").strip()
+        duration_ms = int(duration_ms) if duration_ms.isdigit() else None
+        preview_url = request.form.get("preview_url", "").strip() or None
+        release_date = request.form.get("release_date", "").strip() or None
+        album_cover_url = request.form.get("album_cover_url", "").strip() or None
+        genres = [g for g in request.form.getlist("genre") if g in BIG7]
+
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE tracks SET track_name=COALESCE(%s,track_name), duration_ms=COALESCE(%s,duration_ms), preview_url=COALESCE(%s,preview_url) WHERE track_id=%s",
+                    (track_name, duration_ms, preview_url, track_id),
+                )
+                if release_date or album_cover_url is not None:
+                    cur.execute(
+                        """UPDATE albums SET release_date=COALESCE(%s,release_date), album_image_url=COALESCE(%s,album_image_url)
+                           WHERE album_id = (SELECT album_id FROM album_tracks WHERE track_id=%s LIMIT 1)""",
+                        (release_date if release_date else None, album_cover_url if album_cover_url else None, track_id),
+                    )
+                cur.execute("DELETE FROM track_genres WHERE track_id = %s", (track_id,))
+                for g in genres:
+                    cur.execute(
+                        "INSERT INTO track_genres (track_id, genre_name) VALUES (%s,%s) ON CONFLICT (track_id, genre_name) DO NOTHING",
+                        (track_id, g),
+                    )
+                conn.commit()
+        flash("Track saved.")
+        return redirect(url_for("analyst"))
+
+    # GET: load track for edit or show empty (add mode)
+    track = None
+    if track_id:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT t.track_id, t.track_name, t.duration_ms, t.preview_url,
+                           ar.artist_id, ar.artist_name,
+                           al.album_id, al.album_name, al.release_date, al.album_image_url
+                    FROM tracks t
+                    LEFT JOIN track_artist ta ON ta.track_id = t.track_id
+                    LEFT JOIN artists ar ON ar.artist_id = ta.artist_id
+                    LEFT JOIN album_tracks at ON at.track_id = t.track_id
+                    LEFT JOIN albums al ON al.album_id = at.album_id
+                    WHERE t.track_id = %s
+                    LIMIT 1
+                    """,
+                    (track_id,),
+                )
+                row = cur.fetchone()
+                if row:
+                    cur.execute("SELECT genre_name FROM track_genres WHERE track_id = %s", (track_id,))
+                    genre_names = [r[0] for r in cur.fetchall()]
+                    track = {
+                        "track_id": row[0],
+                        "track_name": row[1],
+                        "duration_ms": row[2],
+                        "preview_url": row[3],
+                        "artist_id": row[4],
+                        "artist_name": row[5],
+                        "album_id": row[6],
+                        "album_name": row[7],
+                        "release_date": str(row[8]) if row[8] else None,
+                        "album_image_url": row[9],
+                        "genre_names": genre_names,
+                    }
+
+    return render_template("analyst_edit.html", track=track, big7=BIG7)
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5001)

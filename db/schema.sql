@@ -74,10 +74,11 @@ CREATE TABLE artist_primary_genre (
   genre_name VARCHAR(120) NOT NULL
 );
 
--- 每 track 仅一行：取 CSV 中该 track 的 genre 列表「第一个」映射到 Big-7，用于歌曲/专辑按最主流 genre 筛选
+-- 每 track 可多行：一首歌可对应多个 Big-7 genre（edit 页多选）
 CREATE TABLE track_genres (
-  track_id VARCHAR(64) PRIMARY KEY REFERENCES tracks(track_id) ON DELETE CASCADE,
-  genre_name VARCHAR(120) NOT NULL
+  track_id VARCHAR(64) NOT NULL REFERENCES tracks(track_id) ON DELETE CASCADE,
+  genre_name VARCHAR(120) NOT NULL,
+  PRIMARY KEY (track_id, genre_name)
 );
 
 CREATE TABLE audio_features (
@@ -96,11 +97,13 @@ CREATE TABLE audio_features (
   time_signature SMALLINT
 );
 
--- seed minimal users for demo
+-- seed users for demo (John Doe, Jane Doe, sherry.wang, Alex Smith)
 INSERT INTO users (email, password_hash, role, is_active)
 VALUES
-('admin@musicbox.local', 'demo', 'admin', TRUE),
-('analyst@musicbox.local', 'demo', 'analyst', TRUE);
+('john.doe@musicbox.local', 'demo', 'admin', TRUE),
+('jane.doe@musicbox.local', 'demo', 'analyst', TRUE),
+('sherry.wang@musicbox.local', 'demo', 'analyst', TRUE),
+('alex.smith@musicbox.local', 'demo', 'analyst', TRUE);
 -- MusicBox database schema
 
 -- TODO: add your tables here

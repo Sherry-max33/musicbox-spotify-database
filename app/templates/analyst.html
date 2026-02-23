@@ -91,11 +91,11 @@
 
     /* compact selector */
     .select-wrap{
-      display:flex;align-items:center;gap:10px;
+      display:flex;align-items:center;gap:8px;
       border:1px solid rgba(255,255,255,.12);
       background:rgba(255,255,255,.04);
       border-radius:999px;
-      padding:6px 10px;
+      padding:6px 6px 6px 10px;
       color:var(--muted);
     }
     .select-wrap label{
@@ -116,12 +116,12 @@
       color:var(--text);
       font-family:var(--mono);
       font-size:12px;
-      padding:6px 26px 6px 10px;
+      padding:6px 20px 6px 6px;
       border-radius:999px;
       cursor:pointer;
     }
     .caret{
-      margin-left:-20px;
+      margin-left:-14px;
       pointer-events:none;
       font-family:var(--mono);
       color:rgba(234,234,234,.7);
@@ -176,7 +176,10 @@
       height:260px;
     }
     .chart.lower{ margin-top:24px; }
-    .chart.lower-strong{ margin-top:38px; }
+    .chart.lower-strong{ margin-top:24px; }
+    .chart.genre-mix-wrap{ height:300px; }
+    .grid-2 .card:last-child .chart.lower{ height:300px; }
+    .chart-spacer{ margin-top:10px; min-height:66px; }
     svg{width:100%;height:100%;display:block}
 
     .summary{
@@ -198,6 +201,7 @@
       font-size:11px;
       color:var(--muted);
       white-space:nowrap;
+      text-decoration:none;
     }
     .mini.active{
       border-color:rgba(0,245,160,.55);
@@ -214,7 +218,23 @@
   </style>
 </head>
 <body>
+  <script>
+    (function(){
+      var y = sessionStorage.getItem('analystScrollY');
+      if (y !== null) {
+        sessionStorage.removeItem('analystScrollY');
+        var n = parseInt(y, 10);
+        function restore(){ window.scrollTo(0, n); }
+        if (document.readyState === 'complete') restore(); else window.addEventListener('load', restore);
+      }
+    })();
+  </script>
   <div class="wrap">
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div style="margin-bottom:12px;padding:12px;border-radius:14px;background:rgba(0,245,160,.12);border:1px solid rgba(0,245,160,.4);">{{ messages[0] }}</div>
+    {% endif %}
+    {% endwith %}
     <div class="topbar">
       <div class="logo">
         <div class="logo-badge">♪</div>
@@ -235,21 +255,16 @@
         <div class="title">STYLE MAP</div>
         <div class="right-head">
           <!-- One selector + Apply (matches the main UI pattern) -->
-          <div class="select-wrap" title="Genre selector (mock)">
+          <div class="select-wrap" title="Genre filter">
             <label>Genre</label>
-            <select>
-              <option selected>All</option>
-              <option>Pop</option>
-              <option>Rock</option>
-              <option>Hip-Hop</option>
-              <option>R&amp;B</option>
-              <option>Jazz</option>
-              <option>Classical</option>
-              <option>Electronic</option>
+            <select id="genreSelect" onchange="sessionStorage.setItem('analystScrollY', window.scrollY); var g=this.value; var q=[]; if(g) q.push('genre='+encodeURIComponent(g)); if('{{ trend_genre }}') q.push('trend_genre='+encodeURIComponent('{{ trend_genre }}')); if('{{ active_feature }}') q.push('feature='+encodeURIComponent('{{ active_feature }}')); location.href='{{ url_for('analyst') }}'+(q.length ? '?'+q.join('&') : '');">
+              <option value=""{% if not genre %} selected{% endif %}>All</option>
+              {% for g in genres %}
+              <option value="{{ g }}"{% if genre == g %} selected{% endif %}>{{ g }}</option>
+              {% endfor %}
             </select>
             <span class="caret">▾</span>
           </div>
-          <button class="btn" type="button">Apply</button>
         </div>
       </div>
       <div class="content">
@@ -258,7 +273,7 @@
             <div class="kicker">Visualization</div>
             <div class="card-title">Radar Chart</div>
             <div class="chart">
-              <svg viewBox="0 0 600 420" role="img" aria-label="Radar chart mock">
+              <svg viewBox="0 0 600 420" role="img" aria-label="Radar chart by genre">
                 <g stroke="rgba(255,255,255,.10)" fill="none" stroke-width="2">
                   <polygon points="300,70 456,160 456,340 300,430 144,340 144,160"/>
                   <polygon points="300,115 420,185 420,315 300,385 180,315 180,185" opacity=".7"/>
@@ -272,9 +287,9 @@
                   <line x1="300" y1="250" x2="144" y2="340"/>
                   <line x1="300" y1="250" x2="144" y2="160"/>
                 </g>
-                <polygon points="300,140 400,205 395,305 300,355 215,305 210,210"
+                <polygon points="{{ radar_points_str_all }}"
                          fill="rgba(0,245,160,.12)" stroke="rgba(0,245,160,.25)" stroke-width="3"/>
-                <polygon points="300,120 430,190 420,325 300,390 190,310 215,185"
+                <polygon points="{{ radar_points_str }}"
                          fill="rgba(0,245,160,.22)" stroke="rgba(0,245,160,.85)" stroke-width="4"/>
                 <g fill="rgba(234,234,234,.85)" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="16">
                   <text x="300" y="48" text-anchor="middle">danceability</text>
@@ -292,13 +307,13 @@
             <div class="kicker">Summary</div>
             <div class="card-title">Feature Averages</div>
             <div class="summary">
-              <div><b>danceability</b>: 0.72</div>
-              <div><b>energy</b>: 0.68</div>
-              <div><b>valence</b>: 0.51</div>
-              <div><b>acousticness</b>: 0.18</div>
-              <div><b>tempo</b>: 121.4</div>
-              <div><b>loudness</b>: -6.9</div>
-              <div><b>avg duration</b>: 3:28</div>
+              <div><b>danceability</b>: {{ summary.danceability if summary.danceability is not none else '—' }}</div>
+              <div><b>energy</b>: {{ summary.energy if summary.energy is not none else '—' }}</div>
+              <div><b>valence</b>: {{ summary.valence if summary.valence is not none else '—' }}</div>
+              <div><b>acousticness</b>: {{ summary.acousticness if summary.acousticness is not none else '—' }}</div>
+              <div><b>tempo</b>: {{ summary.tempo if summary.tempo is not none else '—' }}</div>
+              <div><b>loudness</b>: {{ summary.loudness if summary.loudness is not none else '—' }}</div>
+              <div><b>avg duration</b>: {{ duration_fmt }}</div>
             </div>
           </div>
         </div>
@@ -316,42 +331,9 @@
           <div class="card">
             <div class="kicker">Genre</div>
             <div class="card-title">Genre Mix Over Time</div>
-            <div class="chart lower-strong">
-              <svg viewBox="0 0 600 420" role="img" aria-label="Stacked area chart mock with decade x-axis">
-                <g stroke="rgba(255,255,255,.14)" stroke-width="2">
-                  <line x1="70" y1="360" x2="560" y2="360"/>
-                  <line x1="70" y1="60" x2="70" y2="360"/>
-                </g>
-                <g stroke="rgba(255,255,255,.08)" stroke-width="1">
-                  <line x1="70" y1="300" x2="560" y2="300"/>
-                  <line x1="70" y1="240" x2="560" y2="240"/>
-                  <line x1="70" y1="180" x2="560" y2="180"/>
-                  <line x1="70" y1="120" x2="560" y2="120"/>
-                </g>
-
-                <path d="M70,360 L150,335 L230,320 L310,300 L390,275 L470,255 L560,240
-                         L560,360 L70,360 Z"
-                      fill="rgba(0,245,160,.22)" stroke="rgba(0,245,160,.45)" stroke-width="2"/>
-
-                <path d="M70,240 L150,230 L230,220 L310,210 L390,195 L470,185 L560,170
-                         L560,240
-                         L470,255 L390,275 L310,300 L230,320 L150,335 L70,360 Z"
-                      fill="rgba(0,245,160,.16)" stroke="rgba(0,245,160,.25)" stroke-width="2"/>
-
-                <path d="M70,140 L150,150 L230,155 L310,150 L390,145 L470,135 L560,120
-                         L560,170
-                         L470,185 L390,195 L310,210 L230,220 L150,230 L70,240 Z"
-                      fill="rgba(0,245,160,.10)" stroke="rgba(0,245,160,.18)" stroke-width="2"/>
-
-                <g fill="rgba(234,234,234,.70)" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="14">
-                  <text x="70" y="390" text-anchor="middle">1980</text>
-                  <text x="170" y="390" text-anchor="middle">1990</text>
-                  <text x="270" y="390" text-anchor="middle">2000</text>
-                  <text x="370" y="390" text-anchor="middle">2010</text>
-                  <text x="470" y="390" text-anchor="middle">2020</text>
-                  <text x="560" y="390" text-anchor="middle">2024</text>
-                </g>
-              </svg>
+            <div class="chart-spacer" aria-hidden="true"></div>
+            <div class="chart lower-strong genre-mix-wrap">
+              <canvas id="genreMixChart" height="280" aria-label="Stacked area chart: 8 genres over time"></canvas>
             </div>
           </div>
 
@@ -361,36 +343,28 @@
                 <div class="kicker">Trends</div>
                 <div class="card-title">Audio Features</div>
               </div>
-              <div class="mini-tabs" aria-label="feature tabs">
-                <span class="mini active">danceability</span>
-                <span class="mini">energy</span>
-                <span class="mini">valence</span>
-                <span class="mini">acousticness</span>
-                <span class="mini">tempo</span>
-                <span class="mini">loudness</span>
-                <span class="mini">duration</span>
+              <div class="right-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <div class="select-wrap" title="Genre filter for trend chart">
+                  <label>Genre</label>
+                  <select id="trendGenreSelect">
+                    <option value=""{% if not trend_genre %} selected{% endif %}>All</option>
+                    {% for g in genres %}
+                    <option value="{{ g }}"{% if trend_genre == g %} selected{% endif %}>{{ g }}</option>
+                    {% endfor %}
+                  </select>
+                  <span class="caret">▾</span>
+                </div>
               </div>
+            </div>
+            <div class="mini-tabs" aria-label="feature tabs" id="featureTabs" style="margin-top:10px">
+              {% for tab in feature_tabs %}
+              <a href="#" role="button" data-feature="{{ tab }}"
+                 class="mini{% if active_feature == tab %} active{% endif %}">{{ tab }}</a>
+              {% endfor %}
             </div>
 
             <div class="chart lower">
-              <svg viewBox="0 0 600 420" role="img" aria-label="Feature trend mock with decade x-axis">
-                <g stroke="rgba(255,255,255,.14)" stroke-width="2">
-                  <line x1="70" y1="360" x2="560" y2="360"/>
-                  <line x1="70" y1="60" x2="70" y2="360"/>
-                </g>
-                <path d="M70,300 L170,270 L270,250 L370,225 L470,200 L560,185"
-                      fill="none" stroke="rgba(0,245,160,.95)" stroke-width="4" stroke-linecap="round"/>
-                <path d="M70,330 L170,318 L270,305 L370,292 L470,282 L560,272"
-                      fill="none" stroke="rgba(0,245,160,.18)" stroke-width="3" stroke-linecap="round"/>
-                <g fill="rgba(234,234,234,.70)" font-family="ui-monospace, Menlo, Consolas, monospace" font-size="14">
-                  <text x="70" y="390" text-anchor="middle">1980</text>
-                  <text x="170" y="390" text-anchor="middle">1990</text>
-                  <text x="270" y="390" text-anchor="middle">2000</text>
-                  <text x="370" y="390" text-anchor="middle">2010</text>
-                  <text x="470" y="390" text-anchor="middle">2020</text>
-                  <text x="560" y="390" text-anchor="middle">2024</text>
-                </g>
-              </svg>
+              <canvas id="featureTrendChart" height="260" aria-label="Audio feature trend over decades"></canvas>
             </div>
           </div>
 
@@ -399,5 +373,186 @@
     </div>
 
   </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    (function(){
+      var genreMix = {{ genre_mix|tojson }};
+      var genreOrder = ["Pop","Rock","Hip-Hop","R&B","Jazz","Classical","Electronic","Country"];
+      var colors = [
+        "rgba(0,245,160,.85)",   /* Pop */
+        "rgba(255,120,80,.85)",  /* Rock */
+        "rgba(255,200,60,.85)",  /* Hip-Hop */
+        "rgba(180,100,255,.85)", /* R&B */
+        "rgba(80,200,255,.85)",  /* Jazz */
+        "rgba(255,180,120,.85)", /* Classical */
+        "rgba(255,100,180,.85)", /* Electronic */
+        "rgba(120,220,120,.85)"  /* Country */
+      ];
+      var decades = (genreMix && genreMix.length) ? genreMix.map(function(r){ return r.decade; }) : [];
+      var datasets = genreOrder.map(function(g, i){
+        return {
+          label: g,
+          data: (genreMix || []).map(function(r){ return Number(r[g]) || 0; }),
+          borderWidth: 0,
+          pointRadius: 0,
+          fill: true,
+          stack: "mix",
+          backgroundColor: colors[i]
+        };
+      });
+      var ctx = document.getElementById("genreMixChart");
+      if (ctx && typeof Chart !== "undefined") {
+        new Chart(ctx, {
+          type: "line",
+          data: { labels: decades, datasets: datasets },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: "top",
+                labels: { color: "rgba(234,234,234,.9)", font: { family: "ui-monospace, Menlo, Consolas, monospace", size: 11 }, padding: 10, usePointStyle: true }
+              }
+            },
+            scales: {
+              x: {
+                ticks: { color: "rgba(234,234,234,.7)", maxRotation: 0, font: { family: "ui-monospace, Menlo, Consolas, monospace", size: 11 } },
+                grid: { color: "rgba(255,255,255,.06)" }
+              },
+              y: {
+                stacked: true, min: 0, max: 1,
+                ticks: { color: "rgba(234,234,234,.7)", font: { family: "ui-monospace, Menlo, Consolas, monospace", size: 11 } },
+                grid: { color: "rgba(255,255,255,.06)" }
+              }
+            }
+          }
+        });
+      }
+
+      var trendData = {{ trend_data|tojson }};
+      var trendDataAll = {{ trend_data_all|tojson }};
+      var activeFeature = "{{ active_feature }}";
+      var currentTrendFeature = activeFeature;
+      function trendVal(r, f) { var key = (f === "duration") ? "duration_ms" : f; var v = r[key]; return (v !== null && v !== undefined && v !== "") ? Number(v) : null; }
+      function formatDurationMs(ms) {
+        if (ms == null || isNaN(ms)) return "";
+        var m = Math.floor(Number(ms) / 60000);
+        var s = Math.floor((Number(ms) % 60000) / 1000);
+        return m + ":" + (s < 10 ? "0" : "") + s;
+      }
+      function valuesForLabels(data, labels, feature) {
+        return (labels || []).map(function(decade) {
+          var r = (data || []).find(function(x){ return x.decade === decade; });
+          return r ? trendVal(r, feature) : null;
+        });
+      }
+      var trendLabels = (trendData && trendData.length) ? trendData.map(function(r){ return r.decade; }) : [];
+      var trendValues = (trendData || []).map(function(r){ return trendVal(r, activeFeature); });
+      var trendValuesAll = valuesForLabels(trendDataAll, trendLabels, activeFeature);
+      var trendCtx = document.getElementById("featureTrendChart");
+      var featureTrendChart = null;
+      if (trendCtx && typeof Chart !== "undefined") {
+        featureTrendChart = new Chart(trendCtx, {
+          type: "line",
+          data: {
+            labels: trendLabels,
+            datasets: [
+              {
+                label: "All",
+                data: trendValuesAll,
+                borderColor: "rgba(0,245,160,.35)",
+                backgroundColor: "transparent",
+                borderWidth: 2,
+                fill: false,
+                pointRadius: 0,
+                tension: 0.35
+              },
+              {
+                label: activeFeature,
+                data: trendValues,
+                borderColor: "rgba(0,245,160,.95)",
+                backgroundColor: "transparent",
+                borderWidth: 3,
+                fill: false,
+                pointRadius: 0,
+                pointBackgroundColor: "rgba(0,245,160,.95)",
+                tension: 0.35
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: { padding: { top: 56, right: 0, bottom: 0, left: 0 } },
+            plugins: { legend: { display: false } },
+            scales: {
+              x: {
+                ticks: { color: "rgba(234,234,234,.7)", maxRotation: 0, font: { family: "ui-monospace, Menlo, Consolas, monospace", size: 11 } },
+                grid: { display: false }
+              },
+              y: {
+                ticks: {
+                  color: "rgba(234,234,234,.7)",
+                  font: { family: "ui-monospace, Menlo, Consolas, monospace", size: 11 },
+                  callback: function(value) {
+                    if (currentTrendFeature === "duration") return formatDurationMs(value);
+                    if (value != null && !isNaN(Number(value))) return Number(Number(value).toFixed(2));
+                    return value;
+                  }
+                },
+                grid: { display: false }
+              }
+            }
+          }
+        });
+      }
+      function switchFeature(feature) {
+        if (!featureTrendChart) return;
+        currentTrendFeature = feature;
+        var labels = featureTrendChart.data.labels;
+        var valuesAll = valuesForLabels(trendDataAll, labels, feature);
+        var values = (trendData || []).map(function(r){ return trendVal(r, feature); });
+        featureTrendChart.data.datasets[0].label = "All";
+        featureTrendChart.data.datasets[0].data = valuesAll;
+        featureTrendChart.data.datasets[1].label = feature;
+        featureTrendChart.data.datasets[1].data = values;
+        featureTrendChart.update();
+        var tabs = document.querySelectorAll("#featureTabs .mini");
+        tabs.forEach(function(t){ t.classList.toggle("active", t.getAttribute("data-feature") === feature); });
+      }
+      var tabEl = document.getElementById("featureTabs");
+      if (tabEl) {
+        tabEl.addEventListener("click", function(e) {
+          var a = e.target.closest("a[data-feature]");
+          if (!a) return;
+          e.preventDefault();
+          switchFeature(a.getAttribute("data-feature"));
+        });
+      }
+      function loadTrendGenre(tg) {
+        var url = "{{ url_for('analyst_api_trend_data') }}?trend_genre=" + encodeURIComponent(tg || "");
+        fetch(url).then(function(r){ return r.json(); }).then(function(data) {
+          trendData = data || [];
+          if (featureTrendChart) {
+            var f = currentTrendFeature;
+            var labels = trendData.map(function(r){ return r.decade; });
+            var values = trendData.map(function(r){ return trendVal(r, f); });
+            var valuesAll = valuesForLabels(trendDataAll, labels, f);
+            featureTrendChart.data.labels = labels;
+            featureTrendChart.data.datasets[0].label = "All";
+            featureTrendChart.data.datasets[0].data = valuesAll;
+            featureTrendChart.data.datasets[1].label = f;
+            featureTrendChart.data.datasets[1].data = values;
+            featureTrendChart.update();
+          }
+        });
+      }
+      var trendGenreSelect = document.getElementById("trendGenreSelect");
+      if (trendGenreSelect) {
+        trendGenreSelect.addEventListener("change", function() { loadTrendGenre(this.value); });
+      }
+    })();
+  </script>
 </body>
 </html>

@@ -72,6 +72,7 @@
       border:1px solid rgba(255,255,255,.12);
       background:rgba(255,255,255,.04);
       color:var(--text);
+      text-decoration:none;
     }
     .btn.danger{
       border:1px solid rgba(255,90,90,.45);
@@ -158,6 +159,17 @@
       align-items:center;
     }
     .rel .addnew{padding:10px 12px;border-radius:14px;}
+    .suggest-list{
+      position:absolute;left:0;right:0;top:100%;margin:4px 0 0;padding:6px 0;
+      background:rgba(28,28,28,.98);border:1px solid var(--border);border-radius:14px;
+      list-style:none;max-height:220px;overflow-y:auto;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.4);
+    }
+    .suggest-list li{
+      padding:10px 14px;cursor:pointer;font-size:13px;color:var(--text);
+      border-bottom:1px solid rgba(255,255,255,.04);
+    }
+    .suggest-list li:last-child{border-bottom:0}
+    .suggest-list li:hover{background:rgba(0,245,160,.12);color:var(--accent);}
 
     /* Flat genre pills (no dropdown) */
     .pills{
@@ -209,6 +221,11 @@
 </head>
 <body>
   <div class="wrap">
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div style="margin-bottom:12px;padding:12px;border-radius:14px;background:rgba(0,245,160,.12);border:1px solid rgba(0,245,160,.4);color:var(--text);">{{ messages[0] }}</div>
+    {% endif %}
+    {% endwith %}
     <div class="shell">
       <div class="top">
         <div class="brandwrap">
@@ -218,95 +235,163 @@
             <div class="crumb">Tracks • Add / Edit</div>
           </div>
         </div>
-        <button class="btn secondary" type="button" onclick="alert('Saved (mock)')">Save</button>
+        <button class="btn secondary" type="submit" form="editForm">Save</button>
       </div>
 
-      <a class="linkback" href="#" onclick="return false;">
+      <a class="linkback" href="{{ url_for('analyst') }}">
         <span class="pill">←</span>
         <span>Back to list</span>
       </a>
 
       <div class="content">
-        <!-- Track Info -->
-        <div class="section">
-          <h3>Track Info</h3>
-          <div class="grid">
-            <label for="track_name">Track Name</label>
-            <input id="track_name" type="text" placeholder="e.g., Rolling in the Deep" />
+        <form method="post" action="{{ url_for('analyst_edit') }}" id="editForm">
+          <input type="hidden" name="delete" id="deleteFlag" value="0" />
+          {% if track %}
+          <input type="hidden" name="track_id" value="{{ track.track_id }}" />
+          {% endif %}
 
-            <label>Duration / Release Date</label>
-            <div class="two">
-              <input type="number" min="0" placeholder="Duration (sec)" />
-              <input type="text" placeholder="Release Date (YYYY-MM-DD)" />
-            </div>
+          <!-- Track Info -->
+          <div class="section">
+            <h3>Track Info</h3>
+            <div class="grid">
+              <label for="track_name">Track Name</label>
+              <input id="track_name" name="track_name" type="text" placeholder="e.g., Rolling in the Deep" value="{{ track.track_name if track else '' }}" />
 
-            <label for="preview_url">Preview URL</label>
-            <input id="preview_url" type="url" placeholder="https://..." />
-          </div>
-        </div>
+              <label>Duration / Release Date</label>
+              <div class="two">
+                <input name="duration_ms" type="number" min="0" placeholder="Duration (ms)" value="{{ track.duration_ms if track and track.duration_ms is not none else '' }}" />
+                <input name="release_date" type="text" placeholder="Release Date (YYYY-MM-DD)" value="{{ track.release_date if track else '' }}" />
+              </div>
 
-        <!-- Relations -->
-        <div class="section">
-          <h3>Relations</h3>
-          <div class="grid">
-            <label for="artist">Artist</label>
-            <div class="rel">
-              <input id="artist" type="text" placeholder="search artist…" />
-              <button class="btn secondary addnew" type="button">+ Add New</button>
-            </div>
-
-            <label for="album">Album</label>
-            <div class="rel">
-              <input id="album" type="text" placeholder="search album…" />
-              <button class="btn secondary addnew" type="button">+ Add New</button>
+              <label for="preview_url">Preview URL</label>
+              <input id="preview_url" name="preview_url" type="url" placeholder="https://..." value="{{ (track.preview_url or '') if track else '' }}" />
             </div>
           </div>
-        </div>
 
-        <!-- Genre -->
-        <div class="section">
-          <h3>Artist Genre</h3>
-          <div class="grid">
-            <label>Genre</label>
-            <div class="pills" id="genrePills">
-              <label class="pill-radio active"><input type="radio" name="genre" value="Pop" checked>Pop</label>
-              <label class="pill-radio"><input type="radio" name="genre" value="Rock">Rock</label>
-              <label class="pill-radio"><input type="radio" name="genre" value="Hip-Hop">Hip-Hop</label>
-              <label class="pill-radio"><input type="radio" name="genre" value="R&B">R&B</label>
-              <label class="pill-radio"><input type="radio" name="genre" value="Jazz">Jazz</label>
-              <label class="pill-radio"><input type="radio" name="genre" value="Classical">Classical</label>
-              <label class="pill-radio"><input type="radio" name="genre" value="Electronic">Electronic</label>
+          <!-- Relations：Artist / Album 可搜索 -->
+          <div class="section">
+            <h3>Relations</h3>
+            <div class="grid">
+              <label for="artist">Artist</label>
+              <div class="search-wrap" style="position:relative;">
+                <input id="artist" type="text" autocomplete="off" placeholder="search artist / add new" value="{{ (track.artist_name or '') if track else '' }}" />
+                <input type="hidden" name="artist_id" id="artist_id" value="{{ (track.artist_id or '') if track else '' }}" />
+                <ul id="artistSuggest" class="suggest-list" style="display:none;"></ul>
+              </div>
+
+              <label for="album">Album</label>
+              <div class="search-wrap" style="position:relative;">
+                <input id="album" type="text" autocomplete="off" placeholder="search album / add new" value="{{ (track.album_name or '') if track else '' }}" />
+                <input type="hidden" name="album_id" id="album_id" value="{{ (track.album_id or '') if track else '' }}" />
+                <ul id="albumSuggest" class="suggest-list" style="display:none;"></ul>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Cover -->
-        <div class="section">
-          <h3>Cover (optional, from album)</h3>
-          <div class="grid">
-            <label for="album_cover_url">Album Cover URL</label>
-            <input id="album_cover_url" type="url" placeholder="https://..." />
+          <!-- Genre (多选) -->
+          <div class="section">
+            <h3>Track Genre</h3>
+            <div class="grid">
+              <label>Genre</label>
+              <div class="pills" id="genrePills">
+                {% for g in big7 %}
+                <label class="pill-radio{% if track and g in (track.genre_names or []) %} active{% endif %}"><input type="checkbox" name="genre" value="{{ g }}"{% if track and g in (track.genre_names or []) %} checked{% endif %}{% if not track and g == 'Pop' %} checked{% endif %}>{{ g }}</label>
+                {% endfor %}
+              </div>
+            </div>
           </div>
-        </div>
 
-        <!-- Footer Actions -->
-        <div class="footer">
-          <button class="btn secondary" type="button">Cancel</button>
-          <button class="btn" type="button">Save</button>
-          <button class="btn danger" type="button">Delete</button>
-        </div>
+          <!-- Cover -->
+          <div class="section">
+            <h3>Cover (optional, from album)</h3>
+            <div class="grid">
+              <label for="album_cover_url">Album Cover URL</label>
+              <input id="album_cover_url" name="album_cover_url" type="url" placeholder="https://..." value="{{ (track.album_image_url or '') if track else '' }}" />
+            </div>
+          </div>
+
+          <!-- Footer Actions (与 track_add_edit_mockup_dark_v2.html 一致) -->
+          <div class="footer">
+            <a class="btn secondary" href="{{ url_for('analyst') }}">Cancel</a>
+            <button class="btn" type="submit">Save</button>
+            <button class="btn danger" type="button">Delete</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
 
   <script>
-    // Toggle pill active state (pure UI)
+    // Artist / Album 搜索
+    (function(){
+      var artistUrl = "{{ url_for('analyst_edit_search_artists') }}";
+      var albumUrl = "{{ url_for('analyst_edit_search_albums') }}";
+      var artistInput = document.getElementById('artist');
+      var albumInput = document.getElementById('album');
+      var artistSuggest = document.getElementById('artistSuggest');
+      var albumSuggest = document.getElementById('albumSuggest');
+      var artistIdEl = document.getElementById('artist_id');
+      var albumIdEl = document.getElementById('album_id');
+
+      function debounce(fn, ms){ var t; return function(){ clearTimeout(t); t=setTimeout(fn,ms); }; }
+
+      function showArtistSuggest(items){
+        artistSuggest.innerHTML = items.length ? items.map(function(o){
+          return '<li data-id="'+ (o.artist_id||'').replace(/"/g,'&quot;') +'" data-name="'+ (o.artist_name||'').replace(/"/g,'&quot;') +'">'+ (o.artist_name||'').replace(/</g,'&lt;') +'</li>';
+        }).join('') : '<li style="color:var(--muted)">No results</li>';
+        artistSuggest.style.display = 'block';
+      }
+      function showAlbumSuggest(items){
+        albumSuggest.innerHTML = items.length ? items.map(function(o){
+          return '<li data-id="'+ (o.album_id||'').replace(/"/g,'&quot;') +'" data-name="'+ (o.album_name||'').replace(/"/g,'&quot;') +'">'+ (o.album_name||'').replace(/</g,'&lt;') +'</li>';
+        }).join('') : '<li style="color:var(--muted)">No results</li>';
+        albumSuggest.style.display = 'block';
+      }
+
+      artistInput.addEventListener('input', debounce(function(){
+        var q = artistInput.value.trim();
+        if (!q){ artistSuggest.style.display='none'; return; }
+        fetch(artistUrl + '?q=' + encodeURIComponent(q)).then(function(r){ return r.json(); }).then(showArtistSuggest).catch(function(){ showArtistSuggest([]); });
+      }, 200));
+      artistInput.addEventListener('focus', function(){ if (artistSuggest.innerHTML) artistSuggest.style.display='block'; });
+      artistSuggest.addEventListener('click', function(e){
+        var li = e.target.closest('li[data-id]');
+        if (li){ artistInput.value = li.getAttribute('data-name'); artistIdEl.value = li.getAttribute('data-id'); artistSuggest.style.display='none'; }
+      });
+
+      albumInput.addEventListener('input', debounce(function(){
+        var q = albumInput.value.trim();
+        if (!q){ albumSuggest.style.display='none'; return; }
+        fetch(albumUrl + '?q=' + encodeURIComponent(q)).then(function(r){ return r.json(); }).then(showAlbumSuggest).catch(function(){ showAlbumSuggest([]); });
+      }, 200));
+      albumInput.addEventListener('focus', function(){ if (albumSuggest.innerHTML) albumSuggest.style.display='block'; });
+      albumSuggest.addEventListener('click', function(e){
+        var li = e.target.closest('li[data-id]');
+        if (li){ albumInput.value = li.getAttribute('data-name'); albumIdEl.value = li.getAttribute('data-id'); albumSuggest.style.display='none'; }
+      });
+
+      document.addEventListener('click', function(e){
+        if (!e.target.closest('.search-wrap')){ artistSuggest.style.display='none'; albumSuggest.style.display='none'; }
+      });
+    })();
+
+    // 多选：点击 pill 后根据 checkbox 状态同步 active 样式
     document.querySelectorAll('#genrePills .pill-radio').forEach(lab=>{
       lab.addEventListener('click', ()=>{
-        document.querySelectorAll('#genrePills .pill-radio').forEach(x=>x.classList.remove('active'));
-        lab.classList.add('active');
+        var cb = lab.querySelector('input[type="checkbox"]');
+        lab.classList.toggle('active', cb.checked);
       });
     });
+    // Delete: confirm then submit with delete=1
+    var btn = document.querySelector('.footer .btn.danger');
+    if (btn) {
+      btn.addEventListener('click', function(){
+        if (document.querySelector('input[name="track_id"]') && confirm('Delete this track?')) {
+          document.getElementById('deleteFlag').value = '1';
+          document.getElementById('editForm').submit();
+        }
+      });
+    }
   </script>
 </body>
 </html>

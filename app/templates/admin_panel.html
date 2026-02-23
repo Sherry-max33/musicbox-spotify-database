@@ -192,7 +192,7 @@
       color:var(--accent);
       font-weight:800;
       letter-spacing:.04em;
-      cursor:default;
+      cursor:pointer;
       user-select:none;
       min-width:92px;
       font-family:var(--sans);
@@ -342,6 +342,11 @@
 
 <body>
   <div class="wrap">
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div style="margin-bottom:12px;padding:12px;border-radius:14px;background:rgba(24,243,163,.12);border:1px solid rgba(24,243,163,.4);">{{ messages[0] }}</div>
+    {% endif %}
+    {% endwith %}
     <div class="topbar">
       <div class="logo">
         <div class="logo-badge">♪</div>
@@ -351,6 +356,7 @@
         </div>
       </div>
       <div class="spacer"></div>
+      <a href="{{ url_for('admin_login') }}" class="pill" style="text-decoration:none;color:inherit;">Logout</a>
       <div class="pill"><span>ROLE</span> <b>ADMIN</b></div>
     </div>
 
@@ -370,70 +376,23 @@
           <div style="text-align:right;">Action</div>
         </div>
 
-        <div class="row">
-          <input class="input" placeholder="new.user@musicbox.com" />
-          <select class="select">
-            <option>Admin</option>
-            <option selected>Analyst</option>
+        {% for u in users %}
+        <form method="post" action="{{ url_for('admin_user_update') }}" class="row">
+          <input type="hidden" name="user_id" value="{{ u.user_id }}" />
+          <input class="input" name="email" value="{{ u.email }}" readonly style="opacity:.9;" />
+          <select class="select" name="role">
+            <option value="admin"{% if u.role == 'admin' %} selected{% endif %}>Admin</option>
+            <option value="analyst"{% if u.role == 'analyst' %} selected{% endif %}>Analyst</option>
           </select>
-          <select class="select">
-            <option selected>Active</option>
-            <option>Disabled</option>
+          <select class="select" name="is_active">
+            <option value="1"{% if u.is_active %} selected{% endif %}>Active</option>
+            <option value="0"{% if not u.is_active %} selected{% endif %}>Disabled</option>
           </select>
-          <div style="text-align:right;"><span class="btn">Save</span></div>
-        </div>
-
-        <div class="row">
-          <input class="input" value="muhui.wang" />
-          <select class="select">
-            <option>Admin</option>
-            <option selected>Analyst</option>
-          </select>
-          <select class="select">
-            <option selected>Active</option>
-            <option>Disabled</option>
-          </select>
-          <div style="text-align:right;"><span class="btn">Save</span></div>
-        </div>
-
-        <div class="row">
-          <input class="input" value="sherry.wang" />
-          <select class="select">
-            <option selected>Admin</option>
-            <option>Analyst</option>
-          </select>
-          <select class="select">
-            <option selected>Active</option>
-            <option>Disabled</option>
-          </select>
-          <div style="text-align:right;"><span class="btn">Save</span></div>
-        </div>
-
-        <div class="row">
-          <input class="input" value="alex.chen" />
-          <select class="select">
-            <option selected>Admin</option>
-            <option>Analyst</option>
-          </select>
-          <select class="select">
-            <option selected>Active</option>
-            <option>Disabled</option>
-          </select>
-          <div style="text-align:right;"><span class="btn">Save</span></div>
-        </div>
-
-        <div class="row">
-          <input class="input" value="eva.park" />
-          <select class="select">
-            <option selected>Admin</option>
-            <option>Analyst</option>
-          </select>
-          <select class="select">
-            <option>Active</option>
-            <option selected>Disabled</option>
-          </select>
-          <div style="text-align:right;"><span class="btn">Save</span></div>
-        </div>
+          <div style="text-align:right;"><button type="submit" class="btn">Save</button></div>
+        </form>
+        {% else %}
+        <div class="row"><div style="color:var(--muted);">No users.</div></div>
+        {% endfor %}
       </div>
     </section>
 
@@ -454,50 +413,35 @@
           <div style="text-align:right;">Action</div>
         </div>
 
+        {% for item in pending %}
         <div class="reviewRow">
-          <div>Track: Adele — Easy On Me</div>
-          <div class="tag analyst">Analyst</div>
-          <div><span class="tag new">New</span></div>
+          <div>{{ item.title }}</div>
+          <div class="tag analyst">{{ item.submitted_by }}</div>
+          <div><span class="tag new">{{ item.type|capitalize }}</span></div>
           <div class="tag">Pending</div>
-          <div style="text-align:right;"><span class="openLink">Open</span></div>
-        </div>
-
-        <div class="reviewRow">
-          <div>Album: Adele — 21</div>
-          <div class="tag analyst">Analyst</div>
-          <div><span class="tag update">Update</span></div>
-          <div class="tag">Pending</div>
-          <div style="text-align:right;"><span class="openLink">Open</span></div>
-        </div>
-
-        <div class="reviewRow">
-          <div>Artist: Fake Band</div>
-          <div class="tag analyst">Analyst</div>
-          <div><span class="tag new">New</span></div>
-          <div class="tag">Pending</div>
-          <div style="text-align:right;"><span class="openLink">Open</span></div>
-        </div>
-
-        <div class="detail" aria-label="Review Detail">
-          <div class="detailTitle">
-            <h3>REVIEW DETAIL</h3>
-            <div class="detailMeta">Status: Pending</div>
-          </div>
-
-          <div class="kv">
-            <div class="k">Target</div>
-            <div class="v">Album: Adele — 21</div>
-
-            <div class="k">Changes</div>
-            <div class="v">title, cover, genre</div>
-          </div>
-
-          <div class="actionRow">
-            <span class="btn btnNeutral">Request Changes</span>
-            <span class="btn btnDanger">Reject</span>
-            <span class="btn btnAccent">Approve</span>
+          <div style="text-align:right;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+            {% if item.type == 'track' %}
+            <a href="{{ url_for('analyst_edit') }}?track_id={{ item.id }}" class="openLink" style="text-decoration:none;">Open</a>
+            {% else %}
+            <span class="openLink" style="cursor:default;opacity:.7;">Open</span>
+            {% endif %}
+            <form method="post" action="{{ url_for('admin_review') }}" style="display:inline;">
+              <input type="hidden" name="type" value="{{ item.type }}" />
+              <input type="hidden" name="id" value="{{ item.id }}" />
+              <input type="hidden" name="action" value="reject" />
+              <button type="submit" class="btn btnDanger">Reject</button>
+            </form>
+            <form method="post" action="{{ url_for('admin_review') }}" style="display:inline;">
+              <input type="hidden" name="type" value="{{ item.type }}" />
+              <input type="hidden" name="id" value="{{ item.id }}" />
+              <input type="hidden" name="action" value="approve" />
+              <button type="submit" class="btn btnAccent">Approve</button>
+            </form>
           </div>
         </div>
+        {% else %}
+        <div class="reviewRow"><div style="color:var(--muted);">No pending items.</div></div>
+        {% endfor %}
       </div>
     </section>
 

@@ -95,8 +95,8 @@
     .hero-bg{
       height:260px;
       position:relative;
-      background-size:cover;
-      background-position:center;
+      background-size: cover;
+      background-position: center;
     }
 
     /* Back arrow overlay (simple, no text) */
@@ -264,6 +264,21 @@
     .card .meta .t{font-weight:1000}
     .card .meta .a{color:var(--muted); margin-top:6px; font-size:13px}
 
+    /* See more：与返回钮同配色，长方形 */
+    .albums-seemore-btn{
+      background:rgba(0,245,160,.12);
+      border:1px solid rgba(0,245,160,.45);
+      color:var(--accent);
+      font-weight:800;
+      padding:12px 28px;
+      border-radius:12px;
+      cursor:pointer;
+    }
+    .albums-seemore-btn:hover{
+      border-color:rgba(0,245,160,.7);
+      background:rgba(0,245,160,.18);
+    }
+
     @media (max-width: 980px){
       .grid{grid-template-columns: repeat(3, minmax(0, 1fr));}
       .hero-content{flex-direction:column;align-items:flex-start}
@@ -295,16 +310,21 @@
 <!-- HERO -->
     <div class="hero">
       <div class="back-arrow" id="backBtn">←</div>
-      <div class="hero-bg" id="heroBg">
+      <div class="hero-bg" id="heroBg"{% if hero_cover %} style="background-image:url('{{ hero_cover }}');{% if hero_focus %} background-position:{{ hero_focus }};{% endif %}"{% endif %}>
         <div class="hero-content">
           <div>
-            <div class="artist-name" id="artistName">Adele</div>
+            <div class="artist-name" id="artistName">{{ artist_name or 'Artist' }}</div>
           </div>
           <div class="hero-metrics">
+            {% if rank is not none and total_popularity is not none %}
+            <div class="metric-value" style="font-size:28px;font-weight:900;color:var(--accent);font-family:var(--mono);"># {{ rank }}</div>
+            <div class="metric-label" style="margin-top:6px;">Popularity {{ total_popularity or 0 }}</div>
+            {% else %}
             <div class="metric-label">POPULARITY</div>
             <div class="metric-value" style="margin-top:8px;justify-content:flex-start;">
-              <span id="artistPopText">89 / 100</span>
+              <span id="artistPopText">—</span>
             </div>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -327,7 +347,38 @@
             <th style="width:92px">PREVIEW</th>
           </tr>
         </thead>
-        <tbody id="tracksBody"></tbody>
+        <tbody id="tracksBody">
+          {% if tracks %}
+          {% for t in tracks %}
+          <tr class="row">
+            <td class="rank">#{{ loop.index }}</td>
+            <td>
+              <div class="cover"><img src="{{ t.album_image_url or '' }}" alt="{{ t.track_name }}" loading="lazy" onerror="this.style.display='none';"/></div>
+            </td>
+            <td>
+              <div class="main">{{ t.track_name }}</div>
+              <div class="sub">{{ artist_name }}</div>
+            </td>
+            <td>
+              <div class="sub" style="font-size:14px;color:var(--text);font-weight:850">{{ t.album_name or '—' }}</div>
+            </td>
+            <td class="popcell">
+              <div class="popwrap">
+                <div class="popbar"><div style="width:{{ (t.popularity or 0) }}%"></div></div>
+                <div class="popnum">{{ t.popularity or 0 }}</div>
+              </div>
+            </td>
+            <td>
+              {% if t.preview_url %}
+              <button type="button" class="play preview-play" data-src="{{ t.preview_url }}" aria-label="Preview">▶</button>
+              {% else %}
+              <span class="sub">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          {% endif %}
+        </tbody>
       </table>
     </div>
 
@@ -335,110 +386,94 @@
     <div class="section">
       <div class="section-head">
         <div class="title">ALBUMS</div>
-</div>
-      <div class="grid" id="albumsGrid"></div>
+      </div>
+      <div class="grid" id="albumsGrid">
+        {% if albums %}
+        {% for a in albums %}
+        <div class="card {% if loop.index > 10 %}album-card-more{% endif %}" {% if loop.index > 10 %}style="display:none"{% endif %}>
+          <div class="img"><img src="{{ a.album_image_url or '' }}" alt="{{ a.album_name }}" loading="lazy" onerror="this.style.display='none';"/></div>
+          <div class="meta">
+            <div class="t">{{ a.album_name }}</div>
+            <div class="a">{{ a.release_date or '—' }}</div>
+          </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+      </div>
+      {% if albums and albums|length > 10 %}
+      <div class="albums-seemore" style="text-align:center;padding:14px 0;">
+        <button type="button" class="btn albums-seemore-btn" id="albumsSeeMoreBtn">See more</button>
+      </div>
+      {% endif %}
     </div>
   </div>
+  <audio id="previewAudio" preload="none" style="display:none"></audio>
 
 <script>
-/**
- * Mock Artist Search Result Page
- * - 封面图使用 MusicBrainz / Cover Art Archive (Internet Archive) 缩略图 URL 做“真实封面示意”。
- * - 你后续接数据库时：把 data 替换成 PHP/SQL 查询即可。
- */
-
-const ADELE_21_COVER =
-  "https://archive.org/download/mbid-57440dfc-191c-32bd-ada0-14ac366c2a12/mbid-57440dfc-191c-32bd-ada0-14ac366c2a12-835722588_thumb500.jpg";
-
-// Demo data (Adele)
-const artist = {
-  name: "Adele",
-  heroCover: ADELE_21_COVER,
-  topTracks: [
-    {rank:1, cover:ADELE_21_COVER, track:"Rolling in the Deep", album:"21", popularity:98, preview:true},
-    {rank:2, cover:ADELE_21_COVER, track:"Someone Like You", album:"21", popularity:94, preview:true},
-    {rank:3, cover:ADELE_21_COVER, track:"Set Fire to the Rain", album:"21", popularity:90, preview:true},
-    {rank:4, cover:ADELE_21_COVER, track:"Rumour Has It", album:"21", popularity:84, preview:true},
-    {rank:5, cover:ADELE_21_COVER, track:"Turning Tables", album:"21", popularity:78, preview:true},
-  ],
-  albums: [
-    // NOTE: 这里用同一张真实封面做示意，你后续接库时换成每张专辑自己的 album_image_url 即可
-    {title:"19", year:"2008", cover:ADELE_21_COVER},
-    {title:"21", year:"2011", cover:ADELE_21_COVER},
-    {title:"25", year:"2015", cover:ADELE_21_COVER},
-    {title:"30", year:"2021", cover:ADELE_21_COVER},
-    {title:"Live at the Royal Albert Hall", year:"2011", cover:ADELE_21_COVER},
-  ]
-};
-
+var HAS_ARTIST_DATA = {{ 'true' if (artist_name and (tracks or [])) else 'false' }};
 const $ = (s)=>document.querySelector(s);
+const $$ = (s)=>Array.from(document.querySelectorAll(s));
 
-function setHero(){
-  $("#artistName").textContent = artist.name;
-  $("#heroBg").style.backgroundImage = `url('${artist.heroCover}')`;
+// Preview 播放（与 viewer 一致）
+var previewAudio = document.getElementById("previewAudio");
+if (previewAudio) {
+  function setAllPlayIcons() { $$(".preview-play").forEach(function(btn){ btn.textContent = "▶"; }); }
+  previewAudio.addEventListener("pause", setAllPlayIcons);
+  previewAudio.addEventListener("ended", setAllPlayIcons);
+  document.addEventListener("click", function(e) {
+    var btn = e.target.closest(".preview-play");
+    if (!btn || !btn.dataset.src) return;
+    var src = btn.dataset.src;
+    if (previewAudio.src !== src || previewAudio.paused) {
+      setAllPlayIcons();
+      previewAudio.src = src;
+      previewAudio.play();
+      btn.textContent = "❚❚";
+    } else {
+      previewAudio.pause();
+      btn.textContent = "▶";
+    }
+  });
 }
 
-function renderTopTracks(){
-  const body = $("#tracksBody");
-  body.innerHTML = artist.topTracks.map(t => `
-    <tr class="row">
-      <td class="rank">#${t.rank}</td>
-      <td>
-        <div class="cover"><img src="${t.cover}" alt="${t.track}" loading="lazy"></div>
-      </td>
-      <td>
-        <div class="main">${t.track}</div>
-        <div class="sub">${artist.name}</div>
-      </td>
-      <td>
-        <div class="sub" style="font-size:14px;color:var(--text);font-weight:850">${t.album}</div>
-      </td>
-      <td class="popcell">
-        <div class="popwrap">
-          <div class="popbar"><div style="width:${t.popularity}%"></div></div>
-          <div class="popnum">${t.popularity}</div>
-        </div>
-      </td>
-      <td>
-        <button class="play" onclick="previewMock('${t.track} - ${artist.name}')">▶</button>
-      </td>
-    </tr>
-  `).join("");
-}
-
-function renderAlbums(){
-  const grid = $("#albumsGrid");
-  grid.innerHTML = artist.albums.map(a => `
-    <div class="card" onclick="alert('Open album (mock): ${a.title}')">
-      <div class="img"><img src="${a.cover}" alt="${a.title}" loading="lazy"></div>
-      <div class="meta">
-        <div class="t">${a.title}</div>
-        <div class="a">${a.year}</div>
-      </div>
-    </div>
-  `).join("");
-}
-
-function computePopularity(){
-  const avg = Math.round(artist.topTracks.reduce((s,x)=>s+x.popularity,0)/artist.topTracks.length);
-$("#artistPopText").textContent = `${avg} / 100`;
-}
-
-function previewMock(label){
-  alert("Preview (mock): " + label + "\n(后续接 Tracks.preview_url / audio 播放逻辑)");
-}
-
-$("#backBtn").addEventListener("click", ()=>{
-  // 返回上一页；如果没有历史记录就回主页（你可改成 index.html）
+$("#backBtn").addEventListener("click", function(){
   if (history.length > 1) history.back();
-  else window.location.href = "music_charts_mockup_v2.html";
+  else window.location.href = "{{ url_for('viewer') }}";
 });
 
-// init
-setHero();
-renderTopTracks();
-renderAlbums();
-computePopularity();
+var albumsSeeMoreBtn = document.getElementById("albumsSeeMoreBtn");
+if (albumsSeeMoreBtn) {
+  albumsSeeMoreBtn.addEventListener("click", function(){
+    $$(".album-card-more").forEach(function(el){ el.style.display = ""; });
+    this.style.display = "none";
+  });
+}
+
+if (!HAS_ARTIST_DATA) {
+  var ADELE_21_COVER = "https://archive.org/download/mbid-57440dfc-191c-32bd-ada0-14ac366c2a12/mbid-57440dfc-191c-32bd-ada0-14ac366c2a12-835722588_thumb500.jpg";
+  var artist = {
+    name: "Adele",
+    heroCover: ADELE_21_COVER,
+    topTracks: [
+      {rank:1, cover:ADELE_21_COVER, track:"Rolling in the Deep", album:"21", popularity:98},
+      {rank:2, cover:ADELE_21_COVER, track:"Someone Like You", album:"21", popularity:94},
+      {rank:3, cover:ADELE_21_COVER, track:"Set Fire to the Rain", album:"21", popularity:90},
+    ],
+    albums: [{title:"21", year:"2011", cover:ADELE_21_COVER}, {title:"25", year:"2015", cover:ADELE_21_COVER}]
+  };
+  $("#artistName").textContent = artist.name;
+  if ($("#heroBg")) $("#heroBg").style.backgroundImage = "url('" + artist.heroCover + "')";
+  var popEl = $("#artistPopText");
+  if (popEl) popEl.textContent = "— (无 artist_id 时为 mock)";
+  $("#tracksBody").innerHTML = artist.topTracks.map(t => `
+    <tr class="row"><td class="rank">#${t.rank}</td><td><div class="cover"><img src="${t.cover}" alt="" loading="lazy"/></div></td>
+    <td><div class="main">${t.track}</div><div class="sub">${artist.name}</div></td>
+    <td><div class="sub" style="font-size:14px;color:var(--text);font-weight:850">${t.album}</div></td>
+    <td class="popcell"><div class="popwrap"><div class="popbar"><div style="width:${t.popularity}%"></div></div><div class="popnum">${t.popularity}</div></div></td>
+    <td><span class="sub">—</span></td></tr>`).join("");
+  $("#albumsGrid").innerHTML = artist.albums.map(a => `
+    <div class="card"><div class="img"><img src="${a.cover}" alt="" loading="lazy"/></div><div class="meta"><div class="t">${a.title}</div><div class="a">${a.year}</div></div></div>`).join("");
+}
 </script>
 </body>
 </html>
