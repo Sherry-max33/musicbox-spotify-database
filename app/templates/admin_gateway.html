@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MusicBox Admin • Gateway</title>
+  <style>
+    :root{
+      --bg:#0b0b0b;
+      --panel:#121212;
+      --text:#eaeaea;
+      --muted:#a7a7a7;
+      --border:#2b2b2b;
+      --accent:#00f5a0;
+      --radius:18px;
+      --shadow: 0 12px 34px rgba(0,0,0,.45);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      color:var(--text);
+      background:
+        radial-gradient(1200px 600px at 50% -200px, rgba(0,245,160,.22), transparent 60%),
+        radial-gradient(900px 500px at 90% 0px, rgba(0,194,255,.10), transparent 55%),
+        var(--bg);
+    }
+    .wrap{max-width:1040px;margin:22px auto;padding:0 18px 60px;}
+
+    .shell{
+      border:1px solid var(--border);
+      border-radius:22px;
+      background:rgba(18,18,18,.78);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    .top{
+      padding:18px 20px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      display:flex;align-items:center;justify-content:space-between;gap:16px;
+    }
+    .brandwrap{display:flex;align-items:center;gap:14px;}
+    .logo-badge{
+      width:34px;height:34px;border-radius:10px;
+      background:linear-gradient(135deg,var(--accent),rgba(0,245,160,.25));
+      display:grid;place-items:center;
+      color:#000;font-weight:900;font-size:18px;line-height:1;
+      flex:0 0 auto;
+    }
+    .brand .name{font-weight:1000;letter-spacing:.2px;font-size:16px;line-height:1.1;}
+    .brand .crumb{margin-top:4px;font-family:var(--mono);color:var(--muted);font-size:12px;}
+
+    .btn{
+      border-radius:16px;
+      border:1px solid rgba(0,245,160,.45);
+      background:rgba(0,245,160,.14);
+      color:var(--accent);
+      font-weight:1000;
+      padding:10px 14px;
+      cursor:pointer;
+      font-size:13px;
+      font-family:var(--mono);
+      white-space:nowrap;
+      text-decoration:none;
+      display:inline-block;
+    }
+    .btn:hover{background:rgba(0,245,160,.18)}
+    .btn.secondary{
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+    }
+
+    .linkback{
+      display:inline-flex;align-items:center;gap:10px;
+      margin:14px 0 0 20px;
+      color:var(--muted);
+      font-family:var(--mono);
+      font-size:13px;
+      text-decoration:none;
+      width:fit-content;
+    }
+    .linkback:hover{color:var(--text)}
+    .linkback .pill{
+      width:38px;height:38px;border-radius:14px;
+      display:grid;place-items:center;
+      background:rgba(0,245,160,.10);
+      border:1px solid rgba(0,245,160,.35);
+      color:var(--accent);
+      font-weight:1000;
+    }
+
+    .content{padding:24px 20px 28px;}
+    .welcome{
+      font-size:18px;
+      font-weight:800;
+      margin-bottom:24px;
+      color:var(--text);
+    }
+    .welcome .role{
+      font-family:var(--mono);
+      font-size:13px;
+      color:var(--muted);
+      font-weight:700;
+    }
+
+    .cards{
+      display:grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap:20px;
+    }
+    .gateway-card{
+      border:1px solid rgba(255,255,255,.1);
+      border-radius:20px;
+      background:rgba(0,0,0,.22);
+      box-shadow: 0 10px 26px rgba(0,0,0,.25);
+      padding:24px 22px;
+      transition: border-color .2s ease, transform .12s ease;
+    }
+    .gateway-card:hover{
+      border-color: rgba(0,245,160,.4);
+      transform: translateY(-2px);
+    }
+    .gateway-card .icon-wrap{
+      width:56px;height:56px;
+      border-radius:16px;
+      display:grid;place-items:center;
+      background:rgba(0,245,160,.12);
+      border:1px solid rgba(0,245,160,.35);
+      color:var(--accent);
+      font-size:26px;
+      margin-bottom:16px;
+    }
+    .gateway-card .icon-wrap svg{ width:28px; height:28px; }
+    .gateway-card h2{
+      margin:0 0 10px;
+      font-size:20px;
+      font-weight:1000;
+      letter-spacing:.5px;
+    }
+    .gateway-card .desc{
+      font-size:14px;
+      color:var(--muted);
+      line-height:1.5;
+      margin-bottom:18px;
+    }
+    .gateway-card .btn{ margin-top:0; }
+
+    .footer-links{
+      margin-top:28px;
+      padding-top:20px;
+      border-top:1px solid rgba(255,255,255,.06);
+      display:flex;
+      align-items:center;
+      gap:14px;
+      flex-wrap:wrap;
+    }
+    .footer-links a{
+      color:var(--muted);
+      font-family:var(--mono);
+      font-size:13px;
+      text-decoration:none;
+    }
+    .footer-links a:hover{ color:var(--accent); }
+
+    @media (max-width: 680px){
+      .cards{ grid-template-columns: 1fr; }
+      .content{ padding:18px 16px 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="shell">
+      <div class="top">
+        <div class="brandwrap">
+          <div class="logo-badge"><span style="display:inline-block;transform:translateY(1px);">♪</span></div>
+          <div class="brand">
+            <div class="name">MusicBox <span style="color:var(--muted);font-weight:900">Admin</span></div>
+            <div class="crumb">Welcome back, {{ email or 'User' }}! ({{ role_display }})</div>
+          </div>
+        </div>
+      </div>
+
+      <a class="linkback" href="{{ url_for('viewer') }}">
+        <span class="pill">←</span>
+        <span>Back to Viewer</span>
+      </a>
+
+      <div class="content">
+        <div class="cards">
+          <div class="gateway-card">
+            <div class="icon-wrap" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M0 14 L3 6 L6 18 L9 4 L12 20 L15 8 L18 18 L21 6 L24 14"/>
+              </svg>
+            </div>
+            <h2>Style Analytics</h2>
+            <p class="desc">Explore how audio features evolve by decade and view genre share and trends.</p>
+            <a href="{{ url_for('analyst') }}" class="btn">Open dashboard</a>
+          </div>
+          <div class="gateway-card">
+            <div class="icon-wrap" aria-hidden="true">✎</div>
+            <h2>Content Management</h2>
+            <p class="desc">Add new tracks, update artist/album info, and handle pending reviews.</p>
+            <a href="{{ url_for('analyst_edit') }}" class="btn">Open management</a>
+          </div>
+        </div>
+
+        <div class="footer-links">
+          <a href="{{ url_for('admin_logout') }}">Log out</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

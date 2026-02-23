@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Search – {{ q or 'MusicBox' }}</title>
+  <style>
+    :root{
+      --bg:#0b0b0b;
+      --panel:#121212;
+      --text:#eaeaea;
+      --muted:#a7a7a7;
+      --border:#2b2b2b;
+      --accent:#00f5a0;
+      --radius:18px;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    *{box-sizing:border-box}
+    body{ margin:0; font-family:var(--sans); color:var(--text);
+      background: radial-gradient(1200px 600px at 50% -200px, rgba(0,245,160,.22), transparent 60%), radial-gradient(900px 500px at 90% 0px, rgba(0,194,255,.10), transparent 55%), var(--bg);
+    }
+    .wrap{ max-width:1120px; margin:0 auto; padding:22px 18px 60px; }
+    .topbar{ display:flex; align-items:center; gap:14px; padding:14px; border:1px solid var(--border); border-radius:var(--radius); background:rgba(18,18,18,.78); box-shadow: var(--shadow); }
+    .logo{ display:flex; align-items:center; gap:10px; min-width:180px; font-weight:800; }
+    .logo-badge{ width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg,var(--accent),rgba(0,245,160,.25)); display:grid; place-items:center; color:#000; font-weight:900; }
+    .slogan{ font-size:12px; color:var(--muted); font-family:var(--mono); margin-top:2px; }
+    .search{ flex:1; display:flex; align-items:center; gap:10px; background:rgba(255,255,255,.04); border:1px solid var(--border); border-radius:999px; padding:10px 14px; }
+    .search input{ width:100%; border:0; outline:0; background:transparent; color:var(--text); font-size:14px; }
+    .back{ margin:16px 2px 12px; display:inline-flex; align-items:center; gap:10px; border:1px solid var(--border); background:rgba(255,255,255,.03); padding:10px 12px; border-radius:14px; color:var(--text); text-decoration:none; font-weight:850; }
+    .back .arrow{ width:34px; height:34px; border-radius:12px; display:grid; place-items:center; background:rgba(0,245,160,.10); border:1px solid rgba(0,245,160,.35); color:var(--accent); font-weight:1000; }
+    .page-title{ font-size:24px; font-weight:1000; margin:20px 0 16px; }
+    .result-section{ margin-bottom:24px; border:1px solid var(--border); border-radius:var(--radius); background:rgba(18,18,18,.72); overflow:hidden; }
+    .result-section h3{ margin:0; padding:12px 18px; font-size:12px; letter-spacing:1px; color:var(--muted); font-family:var(--mono); border-bottom:1px solid rgba(255,255,255,.06); }
+    .result-section ul{ list-style:none; margin:0; padding:0; }
+    .result-section li{ border-bottom:1px solid rgba(255,255,255,.04); }
+    .result-section li:last-child{ border-bottom:0; }
+    .result-section a{ display:block; padding:12px 18px; color:var(--text); text-decoration:none; font-weight:800; }
+    .result-section a:hover{ background:rgba(0,245,160,.12); color:var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <a href="{{ url_for('viewer') }}" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;">
+        <div class="logo-badge">♪</div>
+        <div>
+          <div style="font-size:14px;line-height:1">MusicBox</div>
+          <div class="slogan">Discover your sound.</div>
+        </div>
+      </a>
+      <form class="search" method="get" action="{{ url_for('search') }}" autocomplete="off">
+        <span style="color:var(--muted);font-family:var(--mono)">⌕</span>
+        <input name="q" value="{{ q or '' }}" placeholder="Search songs, artists, albums..." autocomplete="off" spellcheck="false" />
+      </form>
+    </div>
+    <a href="{{ url_for('viewer') }}" class="back"><div class="arrow">←</div><span>Back to charts</span></a>
+    <div class="page-title">Search: “{{ q or '' }}”</div>
+    {% if artists or albums or tracks %}
+    {% if artists %}
+    <div class="result-section">
+      <h3>ARTISTS</h3>
+      <ul>
+        {% for a in artists %}
+        <li><a href="{{ url_for('artist') }}?artist_id={{ a.id }}">{{ a.name }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if albums %}
+    <div class="result-section">
+      <h3>ALBUMS</h3>
+      <ul>
+        {% for a in albums %}
+        <li><a href="{{ url_for('album') }}?album_id={{ a.id }}">{{ a.name }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if tracks %}
+    <div class="result-section">
+      <h3>TRACKS</h3>
+      <ul>
+        {% for t in tracks %}
+        <li><a href="{{ url_for('track') }}?track_id={{ t.id }}">{{ t.name }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% else %}
+    <p style="color:var(--muted);">No artists, albums or tracks found for “{{ q }}”.</p>
+    {% endif %}
+  </div>
+</body>
+</html>

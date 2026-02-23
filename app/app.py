@@ -29,7 +29,7 @@ Viewer 各表排序/排名逻辑（/viewer 的 Song / Artist / Album Top Chart�
   - 右上角：第一行显示 # {rank}，第二行显示 Popularity {total_popularity}。TOP TRACKS、ALBUMS 由后端查询渲染。
 """
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 import psycopg2
 from dotenv import load_dotenv
 import requests
@@ -128,6 +128,63 @@ def home():
     return redirect(url_for("viewer"))
 
 
+def _search_all(q, limit=8):
+    """Return { artists, albums, tracks } each list of { id, name } for dropdown / results page."""
+    if not q or not q.strip():
+        return {"artists": [], "albums": [], "tracks": []}
+    q = q.strip()[:120]
+    like = f"%{q}%"
+    out = {"artists": [], "albums": [], "tracks": []}
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT artist_id, artist_name FROM artists
+                   WHERE status = 'approved' AND artist_name ILIKE %s
+                   ORDER BY artist_name LIMIT %s""",
+                (like, limit),
+            )
+            out["artists"] = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
+            cur.execute(
+                """SELECT album_id, album_name FROM albums
+                   WHERE status = 'approved' AND album_name ILIKE %s
+                   ORDER BY album_name LIMIT %s""",
+                (like, limit),
+            )
+            out["albums"] = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
+            cur.execute(
+                """SELECT track_id, track_name FROM tracks
+                   WHERE status = 'approved' AND track_name ILIKE %s
+                   ORDER BY popularity DESC NULLS LAST LIMIT %s""",
+                (like, limit),
+            )
+            out["tracks"] = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
+    return out
+
+
+@app.route("/search/api", methods=["GET"])
+def search_api():
+    """JSON: { artists: [{id,name}], albums: [{id,name}], tracks: [{id,name}] } for dropdown."""
+    q = request.args.get("q", "").strip()
+    data = _search_all(q, limit=8)
+    return jsonify(data)
+
+
+@app.route("/search", methods=["GET"])
+def search():
+    """Search results page: show grouped matches (artists / albums / tracks) with links."""
+    q = request.args.get("q", "").strip()
+    if not q:
+        return redirect(url_for("viewer"))
+    data = _search_all(q, limit=10)
+    return render_template(
+        "search_results.html",
+        q=q,
+        artists=data["artists"],
+        albums=data["albums"],
+        tracks=data["tracks"],
+    )
+
+
 # -------------------------
 # VIEWER (dynamic: query by decade / genre / search)
 # -------------------------
@@ -159,6 +216,7 @@ def viewer():
             t.track_name,
             t.popularity,
             t.preview_url,
+            ar.artist_id,
             ar.artist_name,
             al.album_name,
             al.album_image_url,
@@ -205,14 +263,19 @@ def viewer():
             ))
         ),
         ranked AS (
-          SELECT artist_id, artist_name, track_name, preview_url, popularity,
+          SELECT artist_id,
+                 artist_name,
+                 track_id,
+                 track_name,
+                 preview_url,
+                 popularity,
                  ROW_NUMBER() OVER (PARTITION BY artist_id ORDER BY popularity DESC NULLS LAST) AS rn
           FROM decade_tracks
         ),
         artist_score AS (
           SELECT artist_id, SUM(popularity)::numeric AS score FROM decade_tracks GROUP BY artist_id
         )
-        SELECT r.artist_name, r.track_name, r.preview_url
+        SELECT r.artist_name, r.track_name, r.preview_url, r.artist_id, r.track_id
         FROM ranked r
         JOIN artist_score s ON s.artist_id = r.artist_id
         WHERE r.rn = 1
@@ -245,7 +308,7 @@ def viewer():
           GROUP BY a.album_id, a.album_name, a.album_image_url
         ),
         album_artist_pop AS (
-          SELECT a.album_id, ar.artist_name, SUM(t.popularity) AS artist_pop
+          SELECT a.album_id, ar.artist_id, ar.artist_name, SUM(t.popularity) AS artist_pop
           FROM albums a
           JOIN album_tracks at ON at.album_id = a.album_id
           JOIN tracks t ON t.track_id = at.track_id
@@ -260,11 +323,11 @@ def viewer():
           GROUP BY a.album_id, ar.artist_id, ar.artist_name
         ),
         best_artist AS (
-          SELECT DISTINCT ON (album_id) album_id, artist_name
+          SELECT DISTINCT ON (album_id) album_id, artist_id, artist_name
           FROM album_artist_pop
           ORDER BY album_id, artist_pop DESC NULLS LAST
         )
-        SELECT tot.album_name, tot.album_image_url, ba.artist_name
+        SELECT tot.album_id, tot.album_name, tot.album_image_url, ba.artist_id, ba.artist_name
         FROM album_total tot
         JOIN best_artist ba ON ba.album_id = tot.album_id
         ORDER BY tot.album_total DESC NULLS LAST
@@ -345,6 +408,7 @@ def viewer_genre_chart():
         "decade_start": decade_start,
         "decade_end": decade_end,
     }
+    items = []
     with get_conn() as conn:
         with conn.cursor() as cur:
             if chart_type == "songs":
@@ -353,7 +417,7 @@ def viewer_genre_chart():
                 FROM (
                   SELECT DISTINCT ON (t.track_id)
                     t.track_id, t.track_name, t.popularity, t.preview_url,
-                    ar.artist_name, al.album_name, al.album_image_url
+                    ar.artist_id, ar.artist_name, al.album_id, al.album_name, al.album_image_url
                   FROM tracks t
                   JOIN track_genres tg ON tg.track_id = t.track_id AND tg.genre_name = %(genre)s
                   JOIN track_artist ta ON ta.track_id = t.track_id
@@ -373,17 +437,16 @@ def viewer_genre_chart():
                 """
                 cur.execute(sql, params)
                 rows = cur.fetchall()
-                columns = [
-                    "track_id", "track_name", "popularity", "preview_url",
-                    "artist_name", "album_name", "album_image_url",
-                ]
                 items = [
                     {
                         "rank": i + 1,
+                        "track_id": r[0],
                         "track_name": r[1],
-                        "artist_name": r[4],
-                        "album_name": r[5],
-                        "album_image_url": r[6],
+                        "artist_id": r[4],
+                        "artist_name": r[5],
+                        "album_id": r[6],
+                        "album_name": r[7],
+                        "album_image_url": r[8],
                         "preview_url": r[3],
                     }
                     for i, r in enumerate(rows)
@@ -417,7 +480,7 @@ def viewer_genre_chart():
                   SELECT DISTINCT ON (artist_id) artist_id, artist_name, track_name, preview_url, album_image_url
                   FROM ranked WHERE rn = 1 ORDER BY artist_id
                 )
-                SELECT o.artist_name, o.track_name, o.preview_url, o.album_image_url
+                SELECT o.artist_id, o.artist_name, o.track_name, o.preview_url, o.album_image_url
                 FROM one_per_artist o
                 JOIN artist_score s ON s.artist_id = o.artist_id
                 ORDER BY s.score DESC NULLS LAST
@@ -428,15 +491,15 @@ def viewer_genre_chart():
                 items = [
                     {
                         "rank": i + 1,
-                        "artist_name": r[0],
-                        "top_track_name": r[1],
-                        "preview_url": r[2],
-                        "album_image_url": r[3],
+                        "artist_id": r[0],
+                        "artist_name": r[1],
+                        "top_track_name": r[2],
+                        "preview_url": r[3],
+                        "album_image_url": r[4],
                     }
                     for i, r in enumerate(rows)
                 ]
             else:
-                # albums
                 sql = """
                 WITH album_total AS (
                   SELECT a.album_id, a.album_name, a.album_image_url,
@@ -458,7 +521,7 @@ def viewer_genre_chart():
                   GROUP BY a.album_id, a.album_name, a.album_image_url
                 ),
                 album_artist_pop AS (
-                  SELECT a.album_id, ar.artist_name, SUM(t.popularity) AS artist_pop
+                  SELECT a.album_id, ar.artist_id, ar.artist_name, SUM(t.popularity) AS artist_pop
                   FROM albums a
                   JOIN album_tracks at ON at.album_id = a.album_id
                   JOIN tracks t ON t.track_id = at.track_id
@@ -473,11 +536,11 @@ def viewer_genre_chart():
                   GROUP BY a.album_id, ar.artist_id, ar.artist_name
                 ),
                 best_artist AS (
-                  SELECT DISTINCT ON (album_id) album_id, artist_name
+                  SELECT DISTINCT ON (album_id) album_id, artist_id, artist_name
                   FROM album_artist_pop
                   ORDER BY album_id, artist_pop DESC NULLS LAST
                 )
-                SELECT tot.album_name, tot.album_image_url, ba.artist_name
+                SELECT tot.album_id, tot.album_name, tot.album_image_url, ba.artist_id, ba.artist_name
                 FROM album_total tot
                 JOIN best_artist ba ON ba.album_id = tot.album_id
                 ORDER BY tot.album_total DESC NULLS LAST
@@ -488,13 +551,300 @@ def viewer_genre_chart():
                 items = [
                     {
                         "rank": i + 1,
-                        "album_name": r[0],
-                        "album_image_url": r[1],
-                        "artist_name": r[2],
+                        "album_id": r[0],
+                        "album_name": r[1],
+                        "album_image_url": r[2],
+                        "artist_id": r[3],
+                        "artist_name": r[4],
                     }
                     for i, r in enumerate(rows)
                 ]
     return jsonify({"items": items, "genre": genre, "decade": decade_param, "type": chart_type})
+
+
+@app.route("/album", methods=["GET"])
+def album():
+    album_id = request.args.get("album_id", "").strip()
+    if not album_id:
+        return render_template(
+            "album.html",
+            album_id=None,
+            album_name=None,
+            album_image_url=None,
+            release_year=None,
+            total_popularity=None,
+            artist_id=None,
+            artist_name=None,
+            tracks=[],
+        )
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # 基本信息 + 总热度 + 主艺人（专辑内总 popularity 最高的艺人）
+            cur.execute(
+                """
+                WITH album_tracks AS (
+                  SELECT t.track_id,
+                         t.track_name,
+                         t.popularity,
+                         t.preview_url,
+                         at.track_number,
+                         ar.artist_id,
+                         ar.artist_name
+                  FROM albums a
+                  JOIN album_tracks at ON at.album_id = a.album_id
+                  JOIN tracks t ON t.track_id = at.track_id
+                  LEFT JOIN track_artist ta ON ta.track_id = t.track_id
+                  LEFT JOIN artists ar ON ar.artist_id = ta.artist_id
+                  WHERE a.album_id = %(album_id)s
+                    AND t.status = 'approved'
+                ),
+                album_total AS (
+                  SELECT COALESCE(SUM(popularity), 0)::int AS total_pop FROM album_tracks
+                ),
+                artist_score AS (
+                  SELECT artist_id, artist_name, SUM(popularity) AS artist_pop
+                  FROM album_tracks
+                  WHERE artist_id IS NOT NULL
+                  GROUP BY artist_id, artist_name
+                ),
+                best_artist AS (
+                  SELECT artist_id, artist_name
+                  FROM artist_score
+                  ORDER BY artist_pop DESC NULLS LAST
+                  LIMIT 1
+                )
+                SELECT
+                  a.album_name,
+                  a.album_image_url,
+                  a.release_date,
+                  (SELECT total_pop FROM album_total),
+                  (SELECT artist_id FROM best_artist),
+                  (SELECT artist_name FROM best_artist)
+                FROM albums a
+                WHERE a.album_id = %(album_id)s;
+                """,
+                {"album_id": album_id},
+            )
+            row = cur.fetchone()
+            if not row:
+                return render_template(
+                    "album.html",
+                    album_id=album_id,
+                    album_name=None,
+                    album_image_url=None,
+                    release_year=None,
+                    total_popularity=None,
+                    artist_id=None,
+                    artist_name=None,
+                    tracks=[],
+                )
+
+            album_name, album_image_url, release_date, total_popularity, artist_id, artist_name = row
+            release_year = str(release_date)[:4] if release_date else None
+
+            # 专辑内所有曲目（按 track_number 排序，无编号则靠后按曲名）
+            cur.execute(
+                """
+                WITH base AS (
+                  SELECT
+                    t.track_id,
+                    t.track_name,
+                    t.popularity,
+                    t.preview_url,
+                    at.track_number
+                  FROM albums a
+                  JOIN album_tracks at ON at.album_id = a.album_id
+                  JOIN tracks t ON t.track_id = at.track_id
+                  WHERE a.album_id = %(album_id)s
+                    AND t.status = 'approved'
+                ),
+                artists_per_track AS (
+                  SELECT
+                    ta.track_id,
+                    array_agg(ar.artist_id ORDER BY ar.artist_name) AS artist_ids,
+                    array_agg(ar.artist_name ORDER BY ar.artist_name) AS artist_names
+                  FROM track_artist ta
+                  JOIN artists ar ON ar.artist_id = ta.artist_id
+                  WHERE ta.track_id IN (SELECT track_id FROM base)
+                  GROUP BY ta.track_id
+                )
+                SELECT
+                  b.track_id,
+                  b.track_name,
+                  COALESCE(ap.artist_ids, ARRAY[]::text[]) AS artist_ids,
+                  COALESCE(ap.artist_names, ARRAY[]::text[]) AS artist_names,
+                  b.popularity,
+                  b.preview_url,
+                  b.track_number
+                FROM base b
+                LEFT JOIN artists_per_track ap ON ap.track_id = b.track_id
+                ORDER BY b.track_number NULLS LAST, b.track_name;
+                """,
+                {"album_id": album_id},
+            )
+            track_rows = cur.fetchall()
+            tracks = [
+                {
+                    "track_id": r[0],
+                    "track_name": r[1],
+                    "artists": [
+                        {"artist_id": aid, "artist_name": aname}
+                        for (aid, aname) in zip((r[2] or []), (r[3] or []))
+                    ],
+                    "artist_names": ", ".join((r[3] or [])),
+                    "popularity": r[4],
+                    "preview_url": r[5],
+                    "track_number": r[6],
+                }
+                for r in track_rows
+            ]
+
+    return render_template(
+        "album.html",
+        album_id=album_id,
+        album_name=album_name,
+        album_image_url=album_image_url,
+        release_year=release_year,
+        total_popularity=total_popularity,
+        artist_id=artist_id,
+        artist_name=artist_name,
+        tracks=tracks,
+    )
+
+
+@app.route("/track", methods=["GET"])
+def track():
+    track_id = request.args.get("track_id", "").strip()
+    if not track_id:
+        return render_template(
+            "track.html",
+            track_id=None,
+            track_name=None,
+            artists=[],
+            album_id=None,
+            album_name=None,
+            album_image_url=None,
+            release_year=None,
+            duration_ms=None,
+            duration_str=None,
+            popularity=None,
+            explicit=False,
+            preview_url=None,
+        )
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                WITH base AS (
+                  SELECT
+                    t.track_id,
+                    t.track_name,
+                    t.duration_ms,
+                    t.explicit,
+                    t.preview_url,
+                    t.popularity,
+                    a.album_id,
+                    a.album_name,
+                    a.album_image_url,
+                    a.release_date
+                  FROM tracks t
+                  JOIN album_tracks at ON at.track_id = t.track_id
+                  JOIN albums a ON a.album_id = at.album_id
+                  WHERE t.track_id = %(track_id)s
+                    AND t.status = 'approved'
+                  ORDER BY COALESCE(at.disc_number, 1), COALESCE(at.track_number, 1)
+                  LIMIT 1
+                ),
+                artists AS (
+                  SELECT
+                    ta.track_id,
+                    array_agg(ar.artist_id ORDER BY ar.artist_name) AS artist_ids,
+                    array_agg(ar.artist_name ORDER BY ar.artist_name) AS artist_names
+                  FROM track_artist ta
+                  JOIN artists ar ON ar.artist_id = ta.artist_id
+                  WHERE ta.track_id = %(track_id)s
+                  GROUP BY ta.track_id
+                )
+                SELECT
+                  b.track_name,
+                  b.duration_ms,
+                  b.explicit,
+                  b.preview_url,
+                  b.popularity,
+                  b.album_id,
+                  b.album_name,
+                  b.album_image_url,
+                  b.release_date,
+                  a.artist_ids,
+                  a.artist_names
+                FROM base b
+                LEFT JOIN artists a ON a.track_id = b.track_id;
+                """,
+                {"track_id": track_id},
+            )
+            row = cur.fetchone()
+            if not row:
+                return render_template(
+                    "track.html",
+                    track_id=track_id,
+                    track_name=None,
+                    artists=[],
+                    album_id=None,
+                    album_name=None,
+                    album_image_url=None,
+                    release_year=None,
+                    duration_ms=None,
+                    duration_str=None,
+                    popularity=None,
+                    explicit=False,
+                    preview_url=None,
+                )
+
+            (
+                track_name,
+                duration_ms,
+                explicit,
+                preview_url,
+                popularity,
+                album_id,
+                album_name,
+                album_image_url,
+                release_date,
+                artist_ids,
+                artist_names,
+            ) = row
+
+            release_year = str(release_date)[:4] if release_date else None
+            if duration_ms is not None:
+                total_seconds = int(duration_ms) // 1000
+                minutes = total_seconds // 60
+                seconds = total_seconds % 60
+                duration_str = f"{minutes}:{seconds:02d}"
+            else:
+                duration_str = None
+
+            artists = []
+            if artist_ids and artist_names:
+                for i, name in enumerate(artist_names):
+                    artists.append({"id": artist_ids[i], "name": name})
+
+    return render_template(
+        "track.html",
+        track_id=track_id,
+        track_name=track_name,
+        artists=artists,
+        album_id=album_id,
+        album_name=album_name,
+        album_image_url=album_image_url,
+        release_year=release_year,
+        duration_ms=duration_ms,
+        duration_str=duration_str,
+        popularity=popularity,
+        explicit=explicit,
+        preview_url=preview_url,
+    )
 
 
 # -------------------------
@@ -884,9 +1234,44 @@ def analyst_api_decade_tracks():
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
     if request.method == "POST":
-        # 可在此接入真实校验与 session
-        return redirect(url_for("admin"))
+        email = (request.form.get("username") or "").strip()
+        if not email:
+            flash("Please enter your email.")
+            return render_template("admin_login.html")
+        role = "analyst"
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT email, role FROM users WHERE email = %s",
+                    (email,),
+                )
+                row = cur.fetchone()
+                if row:
+                    email, role = row[0], row[1]
+        session["admin_email"] = email
+        session["admin_role"] = role
+        return redirect(url_for("admin_gateway"))
     return render_template("admin_login.html")
+
+
+@app.route("/admin/gateway", methods=["GET"])
+def admin_gateway():
+    if not session.get("admin_email"):
+        return redirect(url_for("admin_login"))
+    role = (session.get("admin_role") or "analyst").lower()
+    role_display = "Admin" if role == "admin" else "Analyst"
+    return render_template(
+        "admin_gateway.html",
+        email=session.get("admin_email"),
+        role_display=role_display,
+    )
+
+
+@app.route("/admin/logout", methods=["GET", "POST"])
+def admin_logout():
+    session.pop("admin_email", None)
+    session.pop("admin_role", None)
+    return redirect(url_for("admin_login"))
 
 
 def _admin_users(cur):
@@ -1075,7 +1460,13 @@ def artist():
             cur.execute(
                 """
                 SELECT DISTINCT ON (t.track_id)
-                  t.track_name, al.album_name, al.album_image_url, t.popularity, t.preview_url
+                  t.track_id,
+                  t.track_name,
+                  al.album_id,
+                  al.album_name,
+                  al.album_image_url,
+                  t.popularity,
+                  t.preview_url
                 FROM tracks t
                 JOIN track_artist ta ON ta.track_id = t.track_id
                 JOIN album_tracks at ON at.track_id = t.track_id
@@ -1088,7 +1479,18 @@ def artist():
             track_rows = cur.fetchall()
             # 按 popularity 降序排，取前 10
             tracks = sorted(
-                [{"track_name": r[0], "album_name": r[1], "album_image_url": r[2], "popularity": r[3], "preview_url": r[4]} for r in track_rows],
+                [
+                    {
+                        "track_id": r[0],
+                        "track_name": r[1],
+                        "album_id": r[2],
+                        "album_name": r[3],
+                        "album_image_url": r[4],
+                        "popularity": r[5],
+                        "preview_url": r[6],
+                    }
+                    for r in track_rows
+                ],
                 key=lambda x: (x["popularity"] or 0),
                 reverse=True,
             )[:10]

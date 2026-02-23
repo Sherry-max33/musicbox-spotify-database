@@ -61,6 +61,20 @@
       width:100%; border:0;outline:0;background:transparent;color:var(--text);
       font-size:14px;
     }
+    .search input:-webkit-autofill,
+    .search input:-webkit-autofill:focus{
+      -webkit-box-shadow:0 0 0px 1000px rgba(255,255,255,.04) inset;
+      -webkit-text-fill-color:var(--text);
+      caret-color:var(--text);
+    }
+    .search-wrap-global{position:relative;flex:1;display:flex;}
+    .search-wrap-global .search{flex:1;}
+    .global-suggest{position:absolute;left:0;right:0;top:100%;margin:4px 0 0;padding:0;background:rgba(28,28,28,.98);border:1px solid var(--border);border-radius:14px;max-height:320px;overflow-y:auto;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.4);}
+    .global-suggest .sect{padding:8px 0 4px;border-bottom:1px solid rgba(255,255,255,.06);}
+    .global-suggest .sect:last-child{border-bottom:0;}
+    .global-suggest .sect-title{font-size:11px;letter-spacing:1px;color:var(--muted);font-family:var(--mono);padding:4px 18px 6px;}
+    .global-suggest a{display:block;padding:8px 18px;color:var(--text);text-decoration:none;font-size:14px;font-weight:800;}
+    .global-suggest a:hover{background:rgba(0,245,160,.12);color:var(--accent);}
 
     /* Back */
     .back{
@@ -256,6 +270,9 @@
       cursor:pointer;
       transition: transform .12s ease, border-color .12s ease;
       min-height: 240px;
+      display:block;
+      color:inherit;
+      text-decoration:none;
     }
     .card:hover{transform: translateY(-2px); border-color: rgba(0,245,160,.45);}
     .card .img{height:160px; position:relative;background:rgba(255,255,255,.04);}
@@ -302,9 +319,12 @@
           <div class="slogan">Discover your sound.</div>
         </div>
       </div>
-      <div class="search" title="Search songs / artists / albums">
-        <span style="color:var(--muted);font-family:var(--mono)">⌕</span>
-        <input id="searchInput" placeholder="Search songs, artists, albums..." />
+      <div class="search-wrap-global">
+        <form class="search" method="get" action="{{ url_for('search') }}" title="Search songs, artists, albums" autocomplete="off">
+          <span style="color:var(--muted);font-family:var(--mono)">⌕</span>
+          <input id="searchInput" name="q" placeholder="Search songs, artists, albums..." autocomplete="off" spellcheck="false" />
+        </form>
+        <div id="globalSearchSuggest" class="global-suggest" style="display:none;"></div>
       </div>
     </div>
 <!-- HERO -->
@@ -356,11 +376,17 @@
               <div class="cover"><img src="{{ t.album_image_url or '' }}" alt="{{ t.track_name }}" loading="lazy" onerror="this.style.display='none';"/></div>
             </td>
             <td>
-              <div class="main">{{ t.track_name }}</div>
+              <div class="main"><a href="{{ url_for('track') }}?track_id={{ t.track_id }}" style="color:inherit;text-decoration:none;">{{ t.track_name }}</a></div>
               <div class="sub">{{ artist_name }}</div>
             </td>
             <td>
-              <div class="sub" style="font-size:14px;color:var(--text);font-weight:850">{{ t.album_name or '—' }}</div>
+              <div class="sub" style="font-size:14px;color:var(--text);font-weight:850">
+                {% if t.album_id %}
+                <a href="{{ url_for('album') }}?album_id={{ t.album_id }}" style="color:inherit;text-decoration:none;">{{ t.album_name or '—' }}</a>
+                {% else %}
+                {{ t.album_name or '—' }}
+                {% endif %}
+              </div>
             </td>
             <td class="popcell">
               <div class="popwrap">
@@ -390,13 +416,13 @@
       <div class="grid" id="albumsGrid">
         {% if albums %}
         {% for a in albums %}
-        <div class="card {% if loop.index > 10 %}album-card-more{% endif %}" {% if loop.index > 10 %}style="display:none"{% endif %}>
+        <a href="{{ url_for('album') }}?album_id={{ a.album_id }}" class="card {% if loop.index > 10 %}album-card-more{% endif %}" {% if loop.index > 10 %}style="display:none"{% endif %}>
           <div class="img"><img src="{{ a.album_image_url or '' }}" alt="{{ a.album_name }}" loading="lazy" onerror="this.style.display='none';"/></div>
           <div class="meta">
             <div class="t">{{ a.album_name }}</div>
             <div class="a">{{ a.release_date or '—' }}</div>
           </div>
-        </div>
+        </a>
         {% endfor %}
         {% endif %}
       </div>
@@ -448,6 +474,35 @@ if (albumsSeeMoreBtn) {
     this.style.display = "none";
   });
 }
+
+(function(){
+  var apiUrl = "{{ url_for('search_api') }}";
+  var artistBase = "{{ url_for('artist') }}";
+  var albumBase = "{{ url_for('album') }}";
+  var trackBase = "{{ url_for('track') }}";
+  var input = document.getElementById("searchInput");
+  var dropdown = document.getElementById("globalSearchSuggest");
+  var wrap = input && input.closest(".search-wrap-global");
+  if (!input || !dropdown || !wrap) return;
+  function debounce(fn, ms){ var t; return function(){ clearTimeout(t); t = setTimeout(fn, ms); }; }
+  function esc(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;"); }
+  function showSuggest(data){
+    var artists = (data && data.artists) || [];
+    var albums = (data && data.albums) || [];
+    var tracks = (data && data.tracks) || [];
+    var html = "";
+    if (artists.length) { html += "<div class=\"sect\"><div class=\"sect-title\">ARTISTS</div>"; artists.forEach(function(o){ html += "<a href=\"" + artistBase + "?artist_id=" + esc(o.id) + "\">" + esc(o.name) + "</a>"; }); html += "</div>"; }
+    if (albums.length) { html += "<div class=\"sect\"><div class=\"sect-title\">ALBUMS</div>"; albums.forEach(function(o){ html += "<a href=\"" + albumBase + "?album_id=" + esc(o.id) + "\">" + esc(o.name) + "</a>"; }); html += "</div>"; }
+    if (tracks.length) { html += "<div class=\"sect\"><div class=\"sect-title\">TRACKS</div>"; tracks.forEach(function(o){ html += "<a href=\"" + trackBase + "?track_id=" + esc(o.id) + "\">" + esc(o.name) + "</a>"; }); html += "</div>"; }
+    if (!html) html = "<div class=\"sect\"><div class=\"sect-title\" style=\"color:var(--muted)\">No results</div></div>";
+    dropdown.innerHTML = html;
+    dropdown.style.display = "block";
+  }
+  input.addEventListener("input", debounce(function(){ var q = input.value.trim(); if (!q){ dropdown.style.display = "none"; return; } fetch(apiUrl + "?q=" + encodeURIComponent(q)).then(function(r){ return r.json(); }).then(showSuggest).catch(function(){ showSuggest([]); }); }, 200));
+  input.addEventListener("focus", function(){ if (dropdown.innerHTML) dropdown.style.display = "block"; });
+  dropdown.addEventListener("click", function(e){ var a = e.target.closest("a[href]"); if (a){ e.preventDefault(); window.location.href = a.getAttribute("href"); } });
+  document.addEventListener("click", function(e){ if (!e.target.closest(".search-wrap-global")) dropdown.style.display = "none"; });
+})();
 
 if (!HAS_ARTIST_DATA) {
   var ADELE_21_COVER = "https://archive.org/download/mbid-57440dfc-191c-32bd-ada0-14ac366c2a12/mbid-57440dfc-191c-32bd-ada0-14ac366c2a12-835722588_thumb500.jpg";

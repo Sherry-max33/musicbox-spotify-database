@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Track Detail – MusicBox</title>
+  <style>
+    :root{
+      --bg:#0b0b0b;
+      --panel:#121212;
+      --card:#1c1c1c;
+      --text:#eaeaea;
+      --muted:#a7a7a7;
+      --border:#2b2b2b;
+      --accent:#00f5a0;
+      --radius:18px;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      color:var(--text);
+      background:
+        radial-gradient(1200px 600px at 50% -200px, rgba(0,245,160,.22), transparent 60%),
+        radial-gradient(900px 500px at 90% 0px, rgba(0,194,255,.10), transparent 55%),
+        var(--bg);
+    }
+    .wrap{max-width:1120px;margin:0 auto;padding:22px 18px 60px}
+
+    .topbar{
+      display:flex;align-items:center;gap:14px;
+      padding:14px 14px;
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      background:rgba(18,18,18,.78);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow);
+    }
+    .logo{
+      display:flex;align-items:center;gap:10px;min-width:180px;
+      font-weight:800;
+    }
+    .logo-badge{
+      width:34px;height:34px;border-radius:10px;
+      background:linear-gradient(135deg,var(--accent),rgba(0,245,160,.25));
+      display:grid;place-items:center;color:#000;font-weight:900;
+    }
+    .slogan{font-size:12px;color:var(--muted);font-family:var(--mono);margin-top:2px;}
+    .search{
+      flex:1;display:flex;align-items:center;gap:10px;
+      background:rgba(255,255,255,.04);
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:10px 14px;
+    }
+    .search input{
+      width:100%; border:0;outline:0;background:transparent;color:var(--text);
+      font-size:14px;
+    }
+    .search input:-webkit-autofill,
+    .search input:-webkit-autofill:focus{
+      -webkit-box-shadow:0 0 0px 1000px rgba(255,255,255,.04) inset;
+      -webkit-text-fill-color:var(--text);
+      caret-color:var(--text);
+    }
+    .search-wrap-global{position:relative;flex:1;display:flex;}
+    .search-wrap-global .search{flex:1;}
+    .global-suggest{position:absolute;left:0;right:0;top:100%;margin:4px 0 0;padding:0;background:rgba(28,28,28,.98);border:1px solid var(--border);border-radius:14px;max-height:320px;overflow-y:auto;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.4);}
+    .global-suggest .sect{padding:8px 0 4px;border-bottom:1px solid rgba(255,255,255,.06);}
+    .global-suggest .sect:last-child{border-bottom:0;}
+    .global-suggest .sect-title{font-size:11px;letter-spacing:1px;color:var(--muted);font-family:var(--mono);padding:4px 18px 6px;}
+    .global-suggest a{display:block;padding:8px 18px;color:var(--text);text-decoration:none;font-size:14px;font-weight:800;}
+    .global-suggest a:hover{background:rgba(0,245,160,.12);color:var(--accent);}
+
+    .back{
+      margin:16px 2px 12px;
+      display:inline-flex;align-items:center;gap:10px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.03);
+      padding:10px 12px;border-radius:14px;
+      color:var(--text);
+      cursor:pointer;
+      font-weight:850;
+      text-decoration:none;
+    }
+    .back .arrow{
+      width:34px;height:34px;border-radius:12px;
+      display:grid;place-items:center;
+      background:rgba(0,245,160,.10);
+      border:1px solid rgba(0,245,160,.35);
+      color:var(--accent);
+      font-weight:1000;
+    }
+
+    .hero{
+      margin-top:4px;
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      background:rgba(18,18,18,.78);
+      box-shadow:var(--shadow);
+      padding:18px;
+      display:grid;
+      grid-template-columns: 260px 1fr;
+      gap:18px;
+      align-items:stretch;
+    }
+    .hero-cover-wrap{
+      border-radius:18px;
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,.08);
+      background:rgba(255,255,255,.04);
+    }
+    .hero-cover{
+      width:100%;
+      aspect-ratio:1/1;
+      object-fit:cover;
+      display:block;
+    }
+    .hero-title{
+      font-size:32px;
+      font-weight:1000;
+      letter-spacing:.4px;
+      margin-bottom:8px;
+    }
+    .hero-meta-line{
+      font-size:14px;
+      color:var(--muted);
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px 14px;
+      align-items:center;
+    }
+    .hero-link{
+      color:var(--text);
+      font-weight:800;
+      text-decoration:none;
+      border-bottom:1px solid rgba(255,255,255,.18);
+      padding-bottom:1px;
+    }
+    .hero-link:hover{
+      color:var(--accent);
+      border-color:var(--accent);
+    }
+    .badge-explicit{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:2px 8px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.35);
+      font-size:11px;
+      font-family:var(--mono);
+      letter-spacing:.8px;
+    }
+    .hero-metrics{
+      margin-top:18px;
+      font-family:var(--mono);
+      font-size:12px;
+      color:var(--muted);
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px 20px;
+      align-items:center;
+    }
+    .hero-metrics strong{
+      color:var(--text);
+      font-weight:800;
+      margin-left:4px;
+    }
+
+    .player-wrap{
+      margin-top:18px;
+      padding:10px 12px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.09);
+      background:rgba(0,0,0,.35);
+    }
+    .player-label{
+      font-family:var(--mono);
+      font-size:12px;
+      color:var(--muted);
+      letter-spacing:1px;
+      margin-bottom:6px;
+    }
+    audio{
+      width:100%;
+    }
+
+    @media (max-width: 880px){
+      .hero{
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="logo">
+        <div class="logo-badge">♪</div>
+        <div>
+          <div style="font-size:14px;line-height:1">MusicBox</div>
+          <div class="slogan">Discover your sound.</div>
+        </div>
+      </div>
+      <div class="search-wrap-global">
+        <form class="search" method="get" action="{{ url_for('search') }}" title="Search songs, artists, albums" autocomplete="off">
+          <span style="color:var(--muted);font-family:var(--mono)">⌕</span>
+          <input id="searchInput" name="q" placeholder="Search songs, artists, albums..." autocomplete="off" spellcheck="false" />
+        </form>
+        <div id="globalSearchSuggest" class="global-suggest" style="display:none;"></div>
+      </div>
+    </div>
+
+    <a href="{{ url_for('viewer') }}" class="back">
+      <div class="arrow">←</div>
+      <span>Back to charts</span>
+    </a>
+
+    <div class="hero">
+      <div class="hero-cover-wrap">
+        {% if album_image_url %}
+        <img src="{{ album_image_url }}" alt="{{ album_name or 'Album cover' }}" class="hero-cover" loading="lazy" onerror="this.style.display='none';" />
+        {% else %}
+        <div class="hero-cover" style="background:rgba(255,255,255,.04);"></div>
+        {% endif %}
+      </div>
+      <div>
+        <div class="hero-title">{{ track_name or 'Track' }}</div>
+        <div class="hero-meta-line">
+          {% if artists %}
+            <span>By
+              {% for a in artists %}
+                <a href="{{ url_for('artist') }}?artist_id={{ a.id }}" class="hero-link">{{ a.name }}</a>{% if not loop.last %},{% endif %}
+              {% endfor %}
+            </span>
+          {% endif %}
+          {% if album_id and album_name %}
+          <span>· From <a href="{{ url_for('album') }}?album_id={{ album_id }}" class="hero-link">{{ album_name }}</a></span>
+          {% endif %}
+          {% if release_year %}
+          <span>· {{ release_year }}</span>
+          {% endif %}
+          {% if explicit %}
+          <span class="badge-explicit">EXPLICIT</span>
+          {% endif %}
+        </div>
+        <div class="hero-metrics">
+          {% if duration_str %}
+          <span>DURATION<strong>{{ duration_str }}</strong></span>
+          {% endif %}
+          {% if popularity is not none %}
+          <span>POPULARITY<strong>{{ popularity }}</strong></span>
+          {% endif %}
+        </div>
+        {% if preview_url %}
+        <div class="player-wrap">
+          <div class="player-label">PREVIEW</div>
+          <audio controls preload="none" src="{{ preview_url }}"></audio>
+        </div>
+        {% else %}
+        <div class="player-wrap">
+          <div class="player-label">PREVIEW</div>
+          <div style="font-size:13px;color:var(--muted);">No preview available for this track.</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <script>
+  (function(){
+    var apiUrl = "{{ url_for('search_api') }}";
+    var artistBase = "{{ url_for('artist') }}";
+    var albumBase = "{{ url_for('album') }}";
+    var trackBase = "{{ url_for('track') }}";
+    var input = document.getElementById("searchInput");
+    var dropdown = document.getElementById("globalSearchSuggest");
+    if (!input || !dropdown) return;
+    function debounce(fn, ms){ var t; return function(){ clearTimeout(t); t = setTimeout(fn, ms); }; }
+    function esc(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;"); }
+    function showSuggest(data){
+      var artists = (data && data.artists) || [];
+      var albums = (data && data.albums) || [];
+      var tracks = (data && data.tracks) || [];
+      var html = "";
+      if (artists.length) { html += "<div class=\"sect\"><div class=\"sect-title\">ARTISTS</div>"; artists.forEach(function(o){ html += "<a href=\"" + artistBase + "?artist_id=" + esc(o.id) + "\">" + esc(o.name) + "</a>"; }); html += "</div>"; }
+      if (albums.length) { html += "<div class=\"sect\"><div class=\"sect-title\">ALBUMS</div>"; albums.forEach(function(o){ html += "<a href=\"" + albumBase + "?album_id=" + esc(o.id) + "\">" + esc(o.name) + "</a>"; }); html += "</div>"; }
+      if (tracks.length) { html += "<div class=\"sect\"><div class=\"sect-title\">TRACKS</div>"; tracks.forEach(function(o){ html += "<a href=\"" + trackBase + "?track_id=" + esc(o.id) + "\">" + esc(o.name) + "</a>"; }); html += "</div>"; }
+      if (!html) html = "<div class=\"sect\"><div class=\"sect-title\" style=\"color:var(--muted)\">No results</div></div>";
+      dropdown.innerHTML = html;
+      dropdown.style.display = "block";
+    }
+    input.addEventListener("input", debounce(function(){ var q = input.value.trim(); if (!q){ dropdown.style.display = "none"; return; } fetch(apiUrl + "?q=" + encodeURIComponent(q)).then(function(r){ return r.json(); }).then(showSuggest).catch(function(){ showSuggest([]); }); }, 200));
+    input.addEventListener("focus", function(){ if (dropdown.innerHTML) dropdown.style.display = "block"; });
+    dropdown.addEventListener("click", function(e){ var a = e.target.closest("a[href]"); if (a){ e.preventDefault(); window.location.href = a.getAttribute("href"); } });
+    document.addEventListener("click", function(e){ if (!e.target.closest(".search-wrap-global")) dropdown.style.display = "none"; });
+  })();
+  </script>
+</body>
+</html>
+

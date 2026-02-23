@@ -64,6 +64,24 @@
       border:0;outline:0;background:transparent;color:var(--text);
       font-size:14px;
     }
+    .search input:-webkit-autofill,
+    .search input:-webkit-autofill:focus{
+      -webkit-box-shadow:0 0 0px 1000px rgba(255,255,255,.04) inset;
+      -webkit-text-fill-color:var(--text);
+      caret-color:var(--text);
+    }
+    .search-wrap-global{position:relative;flex:1;display:flex;}
+    .search-wrap-global .search{flex:1;}
+    .global-suggest{
+      position:absolute;left:0;right:0;top:100%;margin:4px 0 0;padding:0;
+      background:rgba(28,28,28,.98);border:1px solid var(--border);border-radius:14px;
+      max-height:320px;overflow-y:auto;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.4);
+    }
+    .global-suggest .sect{ padding:8px 0 4px; border-bottom:1px solid rgba(255,255,255,.06); }
+    .global-suggest .sect:last-child{ border-bottom:0; }
+    .global-suggest .sect-title{ font-size:11px; letter-spacing:1px; color:var(--muted); font-family:var(--mono); padding:4px 18px 6px; }
+    .global-suggest a{ display:block; padding:8px 18px; color:var(--text); text-decoration:none; font-size:14px; font-weight:800; }
+    .global-suggest a:hover{ background:rgba(0,245,160,.12); color:var(--accent); }
 
     /* Section */
     .section{
@@ -290,13 +308,13 @@
         </div>
       </div>
 
-      <form class="search" method="get" action="{{ url_for('viewer') }}" title="Search songs / artists / albums">
-        <input type="hidden" name="chart" value="{{ chart or 'song' }}" />
-        <input type="hidden" name="decade" value="{{ decade or 'All' }}" />
-        <input type="hidden" name="genre" value="{{ genre or '' }}" />
-        <span style="color:var(--muted);font-family:var(--mono)">⌕</span>
-        <input id="searchInput" name="q" value="{{ q or '' }}" placeholder="Search songs, artists, albums..." />
-      </form>
+      <div class="search-wrap-global">
+        <form class="search" method="get" action="{{ url_for('search') }}" title="Search songs, artists, albums" autocomplete="off" id="globalSearchForm">
+          <span style="color:var(--muted);font-family:var(--mono)">⌕</span>
+          <input id="searchInput" name="q" value="{{ q or '' }}" placeholder="Search songs, artists, albums..." autocomplete="off" spellcheck="false" />
+        </form>
+        <div id="globalSearchSuggest" class="global-suggest" style="display:none;"></div>
+      </div>
     </div>
 
     <!-- TOP CHARTS -->
@@ -349,9 +367,9 @@
             {% for r in (rows or [])[:10] %}
             <tr class="row">
               <td class="rank">#{{ loop.index }}</td>
-              <td><div class="cover">{% if r[6] %}<img src="{{ r[6] }}" loading="lazy" alt="cover" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/cover_placeholder.png') }}';"/>{% else %}<img src="{{ url_for('static', filename='img/cover_placeholder.png') }}" alt=""/>{% endif %}</div></td>
-              <td><div class="main">{{ r[1] }}</div></td>
-              <td><div class="sub">{{ r[4] }}</div></td>
+              <td><div class="cover">{% if r[7] %}<img src="{{ r[7] }}" loading="lazy" alt="cover" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/cover_placeholder.png') }}';"/>{% else %}<img src="{{ url_for('static', filename='img/cover_placeholder.png') }}" alt=""/>{% endif %}</div></td>
+              <td><div class="main"><a href="{{ url_for('track') }}?track_id={{ r[0] }}" style="color:inherit;text-decoration:none;">{{ r[1] }}</a></div></td>
+              <td><div class="sub">{% if r[4] %}<a href="{{ url_for('artist') }}?artist_id={{ r[4] }}" style="color:inherit;text-decoration:none;">{{ r[5] }}</a>{% else %}{{ r[5] }}{% endif %}</div></td>
               <td class="preview-cell">{% if r[3] %}<button type="button" class="play preview-play" data-src="{{ r[3] }}" aria-label="播放">▶</button>{% else %}-{% endif %}</td>
             </tr>
             {% endfor %}
@@ -367,19 +385,33 @@
               <th style="width:56px">RANK</th>
               <th>ARTIST</th>
               <th>TOP TRACK</th>
-              <th style="width:110px">PREVIEW</th>
+              <th style="width:100px">OPEN</th>
             </tr>
           </thead>
           <tbody>
             {% for r in (rows or [])[:10] %}
             <tr class="row">
               <td class="rank">#{{ loop.index }}</td>
-              <td><div class="main">{{ r[0] }}</div></td>
-              <td><div class="sub">{{ r[1] }}</div></td>
-              <td class="preview-cell">{% if r[2] %}<button type="button" class="play preview-play" data-src="{{ r[2] }}" aria-label="播放">▶</button>{% else %}No preview{% endif %}</td>
+              <td><div class="main"><a href="{{ url_for('artist') }}?artist_id={{ r[3] }}" style="color:inherit;text-decoration:none;">{{ r[0] }}</a></div></td>
+              <td>
+                <div class="sub">
+                  {% if r[4] %}
+                  <a href="{{ url_for('track') }}?track_id={{ r[4] }}" style="color:inherit;text-decoration:none;">{{ r[1] }}</a>
+                  {% else %}
+                  {{ r[1] }}
+                  {% endif %}
+                </div>
+              </td>
+              <td class="preview-cell">
+                <button type="button"
+                        class="play open-btn artist-open-btn"
+                        data-url="{{ url_for('artist') }}?artist_id={{ r[3] }}"
+                        aria-label="打开艺人"
+                        title="打开艺人">↗</button>
+              </td>
             </tr>
             {% endfor %}
-          </tbody>
+            </tbody>
         </table>
         {% endif %}
         {% if chart == 'album' %}
@@ -397,13 +429,19 @@
             {% for r in (rows or [])[:10] %}
             <tr class="row">
               <td class="rank">#{{ loop.index }}</td>
-              <td><div class="cover"><img src="{{ r[1] or url_for('static', filename='img/cover_placeholder.png') }}" loading="lazy" alt="" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/cover_placeholder.png') }}';"/></div></td>
-              <td><div class="main">{{ r[0] }}</div></td>
-              <td><div class="sub">{{ r[2] }}</div></td>
-              <td><button type="button" class="play open-btn" aria-label="打开" title="打开">↗</button></td>
+              <td><div class="cover"><img src="{{ r[2] or url_for('static', filename='img/cover_placeholder.png') }}" loading="lazy" alt="" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/cover_placeholder.png') }}';"/></div></td>
+              <td><div class="main"><a href="{{ url_for('album') }}?album_id={{ r[0] }}" style="color:inherit;text-decoration:none;">{{ r[1] }}</a></div></td>
+              <td><div class="sub">{% if r[3] %}<a href="{{ url_for('artist') }}?artist_id={{ r[3] }}" style="color:inherit;text-decoration:none;">{{ r[4] }}</a>{% else %}{{ r[4] }}{% endif %}</div></td>
+              <td class="preview-cell">
+                <button type="button"
+                        class="play open-btn album-open-btn"
+                        data-url="{{ url_for('album') }}?album_id={{ r[0] }}"
+                        aria-label="打开专辑"
+                        title="打开专辑">↗</button>
+              </td>
             </tr>
             {% endfor %}
-          </tbody>
+            </tbody>
         </table>
         {% endif %}
 
@@ -521,6 +559,62 @@ if (previewAudio) {
   });
 }
 
+// Artist open buttons: navigate to artist detail
+document.addEventListener("click", function(e){
+  var btn = e.target.closest(".artist-open-btn") || e.target.closest(".album-open-btn");
+  if (!btn || !btn.dataset.url) return;
+  window.location.href = btn.dataset.url;
+});
+
+// Global search dropdown (match suggestions like analyst edit)
+(function(){
+  var apiUrl = "{{ url_for('search_api') }}";
+  var artistBase = "{{ url_for('artist') }}";
+  var albumBase = "{{ url_for('album') }}";
+  var trackBase = "{{ url_for('track') }}";
+  var input = document.getElementById("searchInput");
+  var dropdown = document.getElementById("globalSearchSuggest");
+  var wrap = input && input.closest(".search-wrap-global");
+  if (!input || !dropdown || !wrap) return;
+  function debounce(fn, ms){ var t; return function(){ clearTimeout(t); t = setTimeout(fn, ms); }; }
+  function esc(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;"); }
+  function showSuggest(data){
+    var artists = (data && data.artists) || [];
+    var albums = (data && data.albums) || [];
+    var tracks = (data && data.tracks) || [];
+    var html = "";
+    if (artists.length) {
+      html += "<div class=\"sect\"><div class=\"sect-title\">ARTISTS</div>";
+      artists.forEach(function(o){ html += "<a href=\"" + artistBase + "?artist_id=" + esc(o.id) + "\">" + esc(o.name) + "</a>"; });
+      html += "</div>";
+    }
+    if (albums.length) {
+      html += "<div class=\"sect\"><div class=\"sect-title\">ALBUMS</div>";
+      albums.forEach(function(o){ html += "<a href=\"" + albumBase + "?album_id=" + esc(o.id) + "\">" + esc(o.name) + "</a>"; });
+      html += "</div>";
+    }
+    if (tracks.length) {
+      html += "<div class=\"sect\"><div class=\"sect-title\">TRACKS</div>";
+      tracks.forEach(function(o){ html += "<a href=\"" + trackBase + "?track_id=" + esc(o.id) + "\">" + esc(o.name) + "</a>"; });
+      html += "</div>";
+    }
+    if (!html) html = "<div class=\"sect\"><div class=\"sect-title\" style=\"color:var(--muted)\">No results</div></div>";
+    dropdown.innerHTML = html;
+    dropdown.style.display = "block";
+  }
+  input.addEventListener("input", debounce(function(){
+    var q = input.value.trim();
+    if (!q){ dropdown.style.display = "none"; return; }
+    fetch(apiUrl + "?q=" + encodeURIComponent(q)).then(function(r){ return r.json(); }).then(showSuggest).catch(function(){ showSuggest([]); });
+  }, 200));
+  input.addEventListener("focus", function(){ if (dropdown.innerHTML) dropdown.style.display = "block"; });
+  dropdown.addEventListener("click", function(e){
+    var a = e.target.closest("a[href]");
+    if (a){ e.preventDefault(); window.location.href = a.getAttribute("href"); }
+  });
+  document.addEventListener("click", function(e){ if (!e.target.closest(".search-wrap-global")) dropdown.style.display = "none"; });
+})();
+
 function playMock(label){
   alert("Preview (mock): " + label);
 }
@@ -576,6 +670,12 @@ if (!HAS_SERVER_ROWS) {
 var genreListEl = $("#genreList");
 var activeGenre = (INITIAL_GENRE && GENRES.some(g=>g.key===INITIAL_GENRE)) ? INITIAL_GENRE : GENRES[0].key;
 var activeGenreTab = "songs";
+var TRACK_BASE = {{ url_for('track')|tojson }};
+var ARTIST_BASE = {{ url_for('artist')|tojson }};
+var ALBUM_BASE = {{ url_for('album')|tojson }};
+var linkStyle = "color:inherit;text-decoration:none";
+
+function esc(s){ return (s||"").replace(/</g,"&lt;").replace(/&/g,"&amp;").replace(/"/g,"&quot;"); }
 
 function renderGenreCards(items, type){
   if (!items || items.length === 0) {
@@ -584,46 +684,60 @@ function renderGenreCards(items, type){
   }
   var placeholder = typeof COVER_PLACEHOLDER !== "undefined" ? COVER_PLACEHOLDER : "";
   if (type === "songs") {
-    $("#genreGrid").innerHTML = items.map(x=>{
+    $("#genreGrid").innerHTML = items.map((x,i)=>{
+      var rank = x.rank != null ? x.rank : (i+1);
       var cover = (x.album_image_url || placeholder);
-      var preview = (x.preview_url ? `<button type="button" class="preview-play" style="position:absolute;right:10px;bottom:10px;width:36px;height:36px;border-radius:50%;border:0;background:var(--accent);color:#000;cursor:pointer;font-size:14px;" data-src="${x.preview_url.replace(/"/g,"&quot;")}" aria-label="Preview">▶</button>` : "");
+      var preview = (x.preview_url ? `<button type="button" class="preview-play" style="position:absolute;right:10px;bottom:10px;width:36px;height:36px;border-radius:50%;border:0;background:var(--accent);color:#000;cursor:pointer;font-size:14px;" data-src="${(x.preview_url||"").replace(/"/g,"&quot;")}" aria-label="Preview">▶</button>` : "");
+      var t = esc(x.track_name);
+      var a = esc(x.artist_name);
+      var trackHtml = (x.track_id ? `<a href="${TRACK_BASE}?track_id=${encodeURIComponent(x.track_id)}" style="${linkStyle}">${t}</a>` : t);
+      var artistHtml = (x.artist_id ? `<a href="${ARTIST_BASE}?artist_id=${encodeURIComponent(x.artist_id)}" style="${linkStyle}">${a}</a>` : a);
       return `<div class="card">
         <div class="img" style="position:relative">
           <img src="${cover}" loading="lazy" onerror="this.onerror=null;this.src='${placeholder}';"/>
-          <div class="badge">${x.rank}</div>${preview}
+          <div class="badge">${rank}</div>${preview}
         </div>
         <div class="meta">
-          <div class="t">${(x.track_name||"").replace(/</g,"&lt;")}</div>
-          <div class="a">${(x.artist_name||"").replace(/</g,"&lt;")}</div>
+          <div class="t">${trackHtml}</div>
+          <div class="a">${artistHtml}</div>
         </div>
       </div>`;
     }).join("");
   } else if (type === "artists") {
-    $("#genreGrid").innerHTML = items.map(x=>{
+    $("#genreGrid").innerHTML = items.map((x,i)=>{
+      var rank = x.rank != null ? x.rank : (i+1);
       var cover = (x.album_image_url || placeholder);
       var preview = (x.preview_url ? `<button type="button" class="preview-play" style="position:absolute;right:10px;bottom:10px;width:36px;height:36px;border-radius:50%;border:0;background:var(--accent);color:#000;cursor:pointer;font-size:14px;" data-src="${(x.preview_url||"").replace(/"/g,"&quot;")}" aria-label="Preview">▶</button>` : "");
+      var name = esc(x.artist_name);
+      var topTrack = esc(x.top_track_name||"");
+      var artistHtml = (x.artist_id ? `<a href="${ARTIST_BASE}?artist_id=${encodeURIComponent(x.artist_id)}" style="${linkStyle}">${name}</a>` : name);
       return `<div class="card">
         <div class="img" style="position:relative">
           <img src="${cover}" loading="lazy" onerror="this.onerror=null;this.src='${placeholder}';"/>
-          <div class="badge">${x.rank}</div>${preview}
+          <div class="badge">${rank}</div>${preview}
         </div>
         <div class="meta">
-          <div class="t">${(x.artist_name||"").replace(/</g,"&lt;")}</div>
-          <div class="a">${(x.top_track_name||"").replace(/</g,"&lt;")}</div>
+          <div class="t">${artistHtml}</div>
+          <div class="a">${topTrack}</div>
         </div>
       </div>`;
     }).join("");
   } else {
-    $("#genreGrid").innerHTML = items.map(x=>{
+    $("#genreGrid").innerHTML = items.map((x,i)=>{
+      var rank = x.rank != null ? x.rank : (i+1);
       var cover = (x.album_image_url || placeholder);
+      var albumName = esc(x.album_name||"");
+      var artistName = esc(x.artist_name||"");
+      var albumHtml = (x.album_id ? `<a href="${ALBUM_BASE}?album_id=${encodeURIComponent(x.album_id)}" style="${linkStyle}">${albumName}</a>` : albumName);
+      var artistHtml = (x.artist_id ? `<a href="${ARTIST_BASE}?artist_id=${encodeURIComponent(x.artist_id)}" style="${linkStyle}">${artistName}</a>` : artistName);
       return `<div class="card">
         <div class="img">
           <img src="${cover}" loading="lazy" onerror="this.onerror=null;this.src='${placeholder}';"/>
-          <div class="badge">${x.rank}</div>
+          <div class="badge">${rank}</div>
         </div>
         <div class="meta">
-          <div class="t">${(x.album_name||"").replace(/</g,"&lt;")}</div>
-          <div class="a">${(x.artist_name||"").replace(/</g,"&lt;")}</div>
+          <div class="t">${albumHtml}</div>
+          <div class="a">${artistHtml}</div>
         </div>
       </div>`;
     }).join("");
