@@ -70,6 +70,10 @@ COLUMN_CANDIDATES = {
     "explicit": ["explicit"],
     "preview_url": ["preview_url", "track_preview_url", "preview"],
     "album_image_url": ["album_image_url", "image_url", "cover", "album_cover_url"],
+    "added_at": ["added_at"],
+    # disc / track numbers within album
+    "disc_number": ["disc_number", "disc_num"],
+    "track_number": ["track_number", "track_num"],
     # genres
     "genres": ["artist_genres", "genres", "genre"],
     # audio features
@@ -301,7 +305,10 @@ def main():
     c_explicit = find_col(df, "explicit")
     c_preview_url = find_col(df, "preview_url")
     c_album_image = find_col(df, "album_image_url")
+    c_added_at = find_col(df, "added_at")
     c_genres = find_col(df, "genres")
+    c_disc_number = find_col(df, "disc_number")
+    c_track_number = find_col(df, "track_number")
 
     # Audio cols
     audio_cols = {k: find_col(df, k) for k in [
@@ -402,6 +409,8 @@ def main():
         tracks_cols.append(c_explicit)
     if c_preview_url:
         tracks_cols.append(c_preview_url)
+    if c_added_at:
+        tracks_cols.append(c_added_at)
 
     tracks = df[tracks_cols].drop_duplicates().copy()
     rename_map = {"track_id_norm": "track_id", c_track_name: "track_name"}
@@ -413,22 +422,35 @@ def main():
         rename_map[c_explicit] = "explicit"
     if c_preview_url:
         rename_map[c_preview_url] = "preview_url"
+    if c_added_at:
+        rename_map[c_added_at] = "added_at"
     tracks = tracks.rename(columns=rename_map)
 
-    for c in ["popularity", "duration_ms", "explicit", "preview_url"]:
+    for c in ["popularity", "duration_ms", "explicit", "preview_url", "added_at"]:
         if c not in tracks.columns:
             tracks[c] = None
 
     # -----------------------
     # ALBUM_TRACKS
     # -----------------------
-    album_tracks = (
-        df[["album_id_norm", "track_id_norm"]]
-        .drop_duplicates()
-        .rename(columns={"album_id_norm": "album_id", "track_id_norm": "track_id"})
-    )
-    album_tracks["disc_number"] = 1
-    album_tracks["track_number"] = None
+    at_cols = ["album_id_norm", "track_id_norm"]
+    if c_disc_number:
+        at_cols.append(c_disc_number)
+    if c_track_number:
+        at_cols.append(c_track_number)
+
+    album_tracks = df[at_cols].drop_duplicates()
+    at_rename = {"album_id_norm": "album_id", "track_id_norm": "track_id"}
+    if c_disc_number:
+        at_rename[c_disc_number] = "disc_number"
+    if c_track_number:
+        at_rename[c_track_number] = "track_number"
+    album_tracks = album_tracks.rename(columns=at_rename)
+
+    if "disc_number" not in album_tracks.columns:
+        album_tracks["disc_number"] = 1
+    if "track_number" not in album_tracks.columns:
+        album_tracks["track_number"] = None
 
     # -----------------------
     # ARTIST_GENRES (fine + 7 groups)
@@ -616,12 +638,21 @@ def main():
             dur = None if pd.isna(r["duration_ms"]) else int(r["duration_ms"])
             exp = parse_bool(r["explicit"])
             prv = None if pd.isna(r["preview_url"]) else str(r["preview_url"])
-            track_rows.append((r["track_id"], r["track_name"], pop, dur, exp, prv, "approved"))
+            added_raw = r.get("added_at")
+            if added_raw is None or pd.isna(added_raw):
+                added_val = None
+            else:
+                s = str(added_raw).strip()
+                # handle possible ISO datetime like 2024-08-04T...
+                if "T" in s:
+                    s = s.split("T", 1)[0]
+                added_val = s or None
+            track_rows.append((r["track_id"], r["track_name"], pop, dur, exp, prv, "approved", added_val))
 
         execute_values(
             cur,
-            "INSERT INTO tracks (track_id, track_name, popularity, duration_ms, explicit, preview_url, status) VALUES %s "
-            "ON CONFLICT (track_id) DO UPDATE SET track_name=EXCLUDED.track_name",
+            "INSERT INTO tracks (track_id, track_name, popularity, duration_ms, explicit, preview_url, status, added_at) VALUES %s "
+            "ON CONFLICT (track_id) DO UPDATE SET track_name=EXCLUDED.track_name, added_at=COALESCE(EXCLUDED.added_at, tracks.added_at)",
             track_rows,
             page_size=2000
         )

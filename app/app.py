@@ -29,6 +29,7 @@ Viewer 各表排序/排名逻辑（/viewer 的 Song / Artist / Album Top Chart�
   - 右上角：第一行显示 # {rank}，第二行显示 Popularity {total_popularity}。TOP TRACKS、ALBUMS 由后端查询渲染。
 """
 import os
+import uuid
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 import psycopg2
 from dotenv import load_dotenv
@@ -1239,17 +1240,28 @@ def admin_login():
             flash("Please enter your email.")
             return render_template("admin_login.html")
         role = "analyst"
+        user_id = None
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT email, role FROM users WHERE email = %s",
+                    "SELECT user_id, email, role FROM users WHERE email = %s",
                     (email,),
                 )
                 row = cur.fetchone()
                 if row:
-                    email, role = row[0], row[1]
+                    user_id, email, role = row[0], row[1], row[2]
+                else:
+                    # auto-create demo user for this email
+                    cur.execute(
+                        "INSERT INTO users (email, role, is_active) VALUES (%s, %s, TRUE) RETURNING user_id",
+                        (email, role),
+                    )
+                    user_id = cur.fetchone()[0]
+                    conn.commit()
         session["admin_email"] = email
         session["admin_role"] = role
+        if user_id is not None:
+            session["admin_user_id"] = user_id
         return redirect(url_for("admin_gateway"))
     return render_template("admin_login.html")
 
@@ -1271,8 +1283,395 @@ def admin_gateway():
 def admin_logout():
     session.pop("admin_email", None)
     session.pop("admin_role", None)
+    session.pop("admin_user_id", None)
     return redirect(url_for("admin_login"))
 
+
+@app.route("/admin/manage", methods=["GET"])
+def manage_list():
+    if not session.get("admin_email"):
+        return redirect(url_for("admin_login"))
+    # Ensure we always have admin_user_id in session (for Only my submissions),
+    # even for旧会话在我们增加自动创建用户逻辑之前登录的情况
+    if "admin_user_id" not in session or session.get("admin_user_id") is None:
+        email = session.get("admin_email")
+        if email:
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT user_id FROM users WHERE email = %s", (email,))
+                    row = cur.fetchone()
+                    if row:
+                        session["admin_user_id"] = row[0]
+
+    tab = request.args.get("tab", "songs")
+    if tab not in ("songs", "artists", "albums"):
+        tab = "songs"
+    status = (request.args.get("status") or "all").lower()
+    if status not in ("all", "pending", "approved", "rejected"):
+        status = "all"
+    mine = request.args.get("mine") == "1"
+    q = (request.args.get("q") or "").strip()
+    decade = (request.args.get("decade") or "all")
+    genre = (request.args.get("genre") or "all")
+    page_size = 20
+    try:
+        page = int(request.args.get("page", "1"))
+        if page < 1:
+            page = 1
+    except ValueError:
+        page = 1
+    offset = (page - 1) * page_size
+
+    items = []
+    total = 0
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            if tab == "songs":
+                base_where = ["1=1"]
+                base_params = []
+
+                if status != "all":
+                    base_where.append("t.status = %s")
+                    base_params.append(status)
+
+                user_id = session.get("admin_user_id")
+                if mine and user_id:
+                    base_where.append("t.submitted_by = %s")
+                    base_params.append(user_id)
+
+                if decade and decade != "all":
+                    try:
+                        decade_start = int(decade[:4])
+                        decade_end = decade_start + 9
+                        base_where.append(
+                            "al.release_date IS NOT NULL "
+                            "AND EXTRACT(YEAR FROM al.release_date) BETWEEN %s AND %s"
+                        )
+                        base_params.extend([decade_start, decade_end])
+                    except ValueError:
+                        pass
+
+                if genre and genre != "all":
+                    base_where.append(
+                        "EXISTS (SELECT 1 FROM track_genres tg "
+                        "WHERE tg.track_id = t.track_id AND tg.genre_name = %s)"
+                    )
+                    base_params.append(genre)
+
+                # build with search
+                where = list(base_where)
+                params = list(base_params)
+                if q:
+                    where.append(
+                        "("
+                        "LOWER(t.track_name) LIKE %s OR "
+                        "LOWER(COALESCE(ar.artist_name,'')) LIKE %s OR "
+                        "LOWER(COALESCE(al.album_name,'')) LIKE %s"
+                        ")"
+                    )
+                    like = "%" + q.lower() + "%"
+                    params.extend([like, like, like])
+
+                where_sql = " AND ".join(where)
+                count_sql = f"""
+                    SELECT COUNT(DISTINCT t.track_id)
+                    FROM tracks t
+                    LEFT JOIN album_tracks at ON at.track_id = t.track_id
+                    LEFT JOIN albums al ON al.album_id = at.album_id
+                    LEFT JOIN track_artist ta ON ta.track_id = t.track_id
+                    LEFT JOIN artists ar ON ar.artist_id = ta.artist_id
+                    WHERE {where_sql}
+                """
+                cur.execute(count_sql, params)
+                total = cur.fetchone()[0] or 0
+
+                # 如果带 search 没有结果，退回只按过滤器（status/decade/genre等）展示
+                if total == 0 and q:
+                    where_sql = " AND ".join(base_where)
+                    count_sql = f"""
+                        SELECT COUNT(DISTINCT t.track_id)
+                        FROM tracks t
+                        LEFT JOIN album_tracks at ON at.track_id = t.track_id
+                        LEFT JOIN albums al ON al.album_id = at.album_id
+                        LEFT JOIN track_artist ta ON ta.track_id = t.track_id
+                        LEFT JOIN artists ar ON ar.artist_id = ta.artist_id
+                        WHERE {where_sql}
+                    """
+                    cur.execute(count_sql, base_params)
+                    total = cur.fetchone()[0] or 0
+                    params = list(base_params)
+
+                list_sql = f"""
+                    SELECT
+                      t.track_id,
+                      t.track_name,
+                      COALESCE(ar.artist_name, ''),
+                      COALESCE(al.album_name, ''),
+                      al.album_image_url,
+                      t.status,
+                      COALESCE(t.added_at::text, '')
+                    FROM tracks t
+                    LEFT JOIN album_tracks at ON at.track_id = t.track_id
+                    LEFT JOIN albums al ON al.album_id = at.album_id
+                    LEFT JOIN track_artist ta ON ta.track_id = t.track_id
+                    LEFT JOIN artists ar ON ar.artist_id = ta.artist_id
+                    WHERE {where_sql}
+                    GROUP BY t.track_id, t.track_name, ar.artist_name, al.album_name, al.album_image_url, t.status, t.added_at
+                    ORDER BY
+                      CASE t.status
+                        WHEN 'pending' THEN 0
+                        WHEN 'rejected' THEN 1
+                        WHEN 'approved' THEN 2
+                        ELSE 3
+                      END,
+                      CASE WHEN t.added_at IS NULL THEN 1 ELSE 0 END,
+                      t.added_at DESC NULLS LAST,
+                      t.track_id
+                    LIMIT %s OFFSET %s
+                """
+                cur.execute(list_sql, params + [page_size, offset])
+                for r in cur.fetchall():
+                    items.append(
+                        {
+                            "id": r[0],
+                            "name": r[1],
+                            "artist_name": r[2],
+                            "album_name": r[3],
+                            "cover_url": r[4],
+                            "status": r[5],
+                            "last_updated": r[6],
+                        }
+                    )
+
+            elif tab == "artists":
+                base_where = ["1=1"]
+                base_params = []
+
+                if status != "all":
+                    base_where.append("a.status = %s")
+                    base_params.append(status)
+
+                user_id = session.get("admin_user_id")
+                if mine and user_id:
+                    base_where.append("a.submitted_by = %s")
+                    base_params.append(user_id)
+
+                if decade and decade != "all":
+                    try:
+                        decade_start = int(decade[:4])
+                        decade_end = decade_start + 9
+                        base_where.append(
+                            "EXISTS ("
+                            "  SELECT 1 FROM track_artist ta2 "
+                            "  JOIN album_tracks at2 ON at2.track_id = ta2.track_id "
+                            "  JOIN albums al ON al.album_id = at2.album_id "
+                            "  WHERE ta2.artist_id = a.artist_id "
+                            "    AND al.release_date IS NOT NULL "
+                            "    AND EXTRACT(YEAR FROM al.release_date) BETWEEN %s AND %s"
+                            ")"
+                        )
+                        base_params.extend([decade_start, decade_end])
+                    except ValueError:
+                        pass
+
+                if genre and genre != "all":
+                    base_where.append(
+                        "EXISTS (SELECT 1 FROM artist_genres ag "
+                        "WHERE ag.artist_id = a.artist_id AND ag.genre_name = %s)"
+                    )
+                    base_params.append(genre)
+
+                where = list(base_where)
+                params = list(base_params)
+                if q:
+                    where.append("LOWER(a.artist_name) LIKE %s")
+                    like = "%" + q.lower() + "%"
+                    params.append(like)
+
+                where_sql = " AND ".join(where)
+                count_sql = f"SELECT COUNT(*) FROM artists a WHERE {where_sql}"
+                cur.execute(count_sql, params)
+                total = cur.fetchone()[0] or 0
+
+                if total == 0 and q:
+                    where_sql = " AND ".join(base_where)
+                    count_sql = f"SELECT COUNT(*) FROM artists a WHERE {where_sql}"
+                    cur.execute(count_sql, base_params)
+                    total = cur.fetchone()[0] or 0
+                    params = list(base_params)
+
+                list_sql = f"""
+                    SELECT
+                      a.artist_id,
+                      a.artist_name,
+                      a.status,
+                      COALESCE(MIN(t.added_at)::text, '')
+                    FROM artists a
+                    LEFT JOIN track_artist ta ON ta.artist_id = a.artist_id
+                    LEFT JOIN tracks t ON t.track_id = ta.track_id
+                    WHERE {where_sql}
+                    GROUP BY a.artist_id, a.artist_name, a.status
+                    ORDER BY
+                      CASE a.status
+                        WHEN 'pending' THEN 0
+                        WHEN 'rejected' THEN 1
+                        WHEN 'approved' THEN 2
+                        ELSE 3
+                      END,
+                      MIN(t.added_at) IS NULL,
+                      MIN(t.added_at) DESC,
+                      a.artist_name
+                    LIMIT %s OFFSET %s
+                """
+                cur.execute(list_sql, params + [page_size, offset])
+                for r in cur.fetchall():
+                    items.append(
+                        {
+                            "id": r[0],
+                            "name": r[1],
+                            "status": r[2],
+                            "last_updated": r[3],
+                        }
+                    )
+
+            elif tab == "albums":
+                base_where = ["1=1"]
+                base_params = []
+
+                if status != "all":
+                    base_where.append("a.status = %s")
+                    base_params.append(status)
+
+                user_id = session.get("admin_user_id")
+                if mine and user_id:
+                    base_where.append("a.submitted_by = %s")
+                    base_params.append(user_id)
+
+                if decade and decade != "all":
+                    try:
+                        decade_start = int(decade[:4])
+                        decade_end = decade_start + 9
+                        base_where.append(
+                            "a.release_date IS NOT NULL "
+                            "AND EXTRACT(YEAR FROM a.release_date) BETWEEN %s AND %s"
+                        )
+                        base_params.extend([decade_start, decade_end])
+                    except ValueError:
+                        pass
+
+                if genre and genre != "all":
+                    base_where.append(
+                        "EXISTS (SELECT 1 FROM album_tracks at2 "
+                        "JOIN track_genres tg ON tg.track_id = at2.track_id "
+                        "WHERE at2.album_id = a.album_id AND tg.genre_name = %s)"
+                    )
+                    base_params.append(genre)
+
+                where = list(base_where)
+                params = list(base_params)
+                if q:
+                    where.append(
+                        "("
+                        "LOWER(a.album_name) LIKE %s OR "
+                        "LOWER(COALESCE(ar.artist_name,'')) LIKE %s"
+                        ")"
+                    )
+                    like = "%" + q.lower() + "%"
+                    params.extend([like, like])
+
+                where_sql = " AND ".join(where)
+                count_sql = f"""
+                    SELECT COUNT(DISTINCT a.album_id)
+                    FROM albums a
+                    LEFT JOIN album_tracks at ON at.album_id = a.album_id
+                    LEFT JOIN tracks t ON t.track_id = at.track_id
+                    LEFT JOIN track_artist ta ON ta.track_id = t.track_id
+                    LEFT JOIN artists ar ON ar.artist_id = ta.artist_id
+                    WHERE {where_sql}
+                """
+                cur.execute(count_sql, params)
+                total = cur.fetchone()[0] or 0
+
+                if total == 0 and q:
+                    where_sql = " AND ".join(base_where)
+                    count_sql = f"""
+                        SELECT COUNT(DISTINCT a.album_id)
+                        FROM albums a
+                        LEFT JOIN album_tracks at ON at.album_id = a.album_id
+                        LEFT JOIN tracks t ON t.track_id = at.track_id
+                        LEFT JOIN track_artist ta ON ta.track_id = t.track_id
+                        LEFT JOIN artists ar ON ar.artist_id = ta.artist_id
+                        WHERE {where_sql}
+                    """
+                    cur.execute(count_sql, base_params)
+                    total = cur.fetchone()[0] or 0
+                    params = list(base_params)
+
+                list_sql = f"""
+                    SELECT
+                      a.album_id,
+                      a.album_name,
+                      a.album_image_url,
+                      a.status,
+                      COALESCE(MIN(t.added_at)::text, '')
+                    FROM albums a
+                    LEFT JOIN album_tracks at ON at.album_id = a.album_id
+                    LEFT JOIN tracks t ON t.track_id = at.track_id
+                    LEFT JOIN track_artist ta ON ta.track_id = t.track_id
+                    LEFT JOIN artists ar ON ar.artist_id = ta.artist_id
+                    WHERE {where_sql}
+                    GROUP BY a.album_id, a.album_name, a.album_image_url, a.status
+                    ORDER BY
+                      CASE a.status
+                        WHEN 'pending' THEN 0
+                        WHEN 'rejected' THEN 1
+                        WHEN 'approved' THEN 2
+                        ELSE 3
+                      END,
+                      MIN(t.added_at) IS NULL,
+                      MIN(t.added_at) DESC,
+                      a.album_name
+                    LIMIT %s OFFSET %s
+                """
+                cur.execute(list_sql, params + [page_size, offset])
+                for r in cur.fetchall():
+                    items.append(
+                        {
+                            "id": r[0],
+                            "name": r[1],
+                            "cover_url": r[2],
+                            "status": r[3],
+                            "last_updated": r[4],
+                        }
+                    )
+
+    last_page = max(1, (total + page_size - 1) // page_size) if total else 1
+    if page > last_page:
+        page = last_page
+    # simple page window around current page
+    start_p = max(1, page - 2)
+    end_p = min(last_page, page + 2)
+    page_window = list(range(start_p, end_p + 1))
+
+    return render_template(
+        "manage_list.html",
+        tab=tab,
+        status=status,
+        mine=mine,
+        q=q,
+        decade=decade,
+        genre=genre,
+        items=items,
+        total=total,
+        page=page,
+        last_page=last_page,
+        start_index=(offset + 1) if total else 0,
+        end_index=min(offset + page_size, total) if total else 0,
+        page_window=page_window,
+        current_email=session.get("admin_email"),
+        current_role=(session.get("admin_role") or "Analyst").capitalize(),
+        big7=BIG7,
+    )
 
 def _admin_users(cur):
     cur.execute(
@@ -1578,6 +1977,249 @@ def analyst_edit_search_albums():
     return jsonify([{"album_id": r[0], "album_name": r[1]} for r in rows])
 
 
+@app.route("/analyst/edit/artist", methods=["GET", "POST"])
+def analyst_edit_artist():
+    artist_id = request.args.get("artist_id", "").strip() if request.method == "GET" else request.form.get("artist_id", "").strip()
+
+    if request.method == "POST":
+        if request.form.get("delete") == "1":
+            if artist_id:
+                with get_conn() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("DELETE FROM artists WHERE artist_id = %s", (artist_id,))
+                        conn.commit()
+                flash("Artist deleted.")
+            return redirect(url_for("manage_list", tab="artists"))
+        artist_name = (request.form.get("artist_name") or "").strip()
+        if not artist_name:
+            flash("Artist name is required.")
+            return redirect(request.url)
+        genres = [g for g in request.form.getlist("genre") if g in BIG7]
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                submitted_by = session.get("admin_user_id")
+                if artist_id:
+                    cur.execute(
+                        "UPDATE artists SET artist_name = %s, submitted_by = COALESCE(%s, submitted_by) WHERE artist_id = %s",
+                        (artist_name, submitted_by, artist_id),
+                    )
+                else:
+                    artist_id = f"local_{uuid.uuid4().hex}"
+                    cur.execute(
+                        "INSERT INTO artists (artist_id, artist_name, status, added_at, submitted_by) VALUES (%s,%s,'pending',CURRENT_DATE,%s)",
+                        (artist_id, artist_name, submitted_by),
+                    )
+                cur.execute("DELETE FROM artist_genres WHERE artist_id = %s", (artist_id,))
+                for g in genres:
+                    cur.execute(
+                        "INSERT INTO artist_genres (artist_id, genre_name) VALUES (%s,%s) ON CONFLICT (artist_id, genre_name) DO NOTHING",
+                        (artist_id, g),
+                    )
+                if genres:
+                    cur.execute(
+                        "INSERT INTO artist_primary_genre (artist_id, genre_name) VALUES (%s,%s) "
+                        "ON CONFLICT (artist_id) DO UPDATE SET genre_name = EXCLUDED.genre_name",
+                        (artist_id, genres[0]),
+                    )
+                else:
+                    cur.execute("DELETE FROM artist_primary_genre WHERE artist_id = %s", (artist_id,))
+                conn.commit()
+        flash("Artist saved.")
+        return redirect(url_for("analyst_edit_artist", artist_id=artist_id))
+
+    artist = None
+    artist_genres = []
+    artist_albums = []
+    if artist_id:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT artist_id, artist_name, status FROM artists WHERE artist_id = %s",
+                    (artist_id,),
+                )
+                row = cur.fetchone()
+                if row:
+                    artist = {
+                        "artist_id": row[0],
+                        "artist_name": row[1],
+                        "status": row[2],
+                    }
+                    cur.execute("SELECT genre_name FROM artist_genres WHERE artist_id = %s", (artist_id,))
+                    artist_genres = [r[0] for r in cur.fetchall()]
+                    cur.execute(
+                        """
+                        SELECT a.album_id, a.album_name, a.release_date
+                        FROM albums a
+                        JOIN album_tracks at ON at.album_id = a.album_id
+                        JOIN tracks t ON t.track_id = at.track_id
+                        JOIN track_artist ta ON ta.track_id = t.track_id
+                        WHERE ta.artist_id = %s
+                        GROUP BY a.album_id, a.album_name, a.release_date
+                        ORDER BY a.release_date DESC NULLS LAST, a.album_name
+                        """,
+                        (artist_id,),
+                    )
+                    artist_albums = [
+                        {
+                            "album_id": r[0],
+                            "album_name": r[1],
+                            "release_year": str(r[2])[:4] if r[2] else None,
+                        }
+                        for r in cur.fetchall()
+                    ]
+
+    return render_template(
+        "analyst_edit.html",
+        mode="artist",
+        artist=artist,
+        artist_genres=artist_genres,
+        artist_albums=artist_albums,
+        big7=BIG7,
+    )
+
+
+@app.route("/analyst/edit/album", methods=["GET", "POST"])
+def analyst_edit_album():
+    album_id = request.args.get("album_id", "").strip() if request.method == "GET" else request.form.get("album_id", "").strip()
+
+    if request.method == "POST":
+        if request.form.get("delete") == "1":
+            if album_id:
+                with get_conn() as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("DELETE FROM albums WHERE album_id = %s", (album_id,))
+                        conn.commit()
+                flash("Album deleted.")
+            return redirect(url_for("manage_list", tab="albums"))
+        album_name = (request.form.get("album_name") or "").strip()
+        if not album_name:
+            flash("Album name is required.")
+            return redirect(request.url)
+        release_date_raw = (request.form.get("release_date") or "").strip()
+        album_image_url = (request.form.get("album_image_url") or "").strip() or None
+        main_artist_id = (request.form.get("main_artist_id") or "").strip()
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                submitted_by = session.get("admin_user_id")
+                if release_date_raw:
+                    try:
+                        cur.execute("SELECT %s::date", (release_date_raw,))
+                        release_date = release_date_raw
+                    except Exception:
+                        release_date = None
+                else:
+                    release_date = None
+                if album_id:
+                    cur.execute(
+                        "UPDATE albums SET album_name=%s, release_date=COALESCE(%s, release_date), "
+                        "album_image_url=COALESCE(%s, album_image_url), submitted_by=COALESCE(%s, submitted_by) "
+                        "WHERE album_id=%s",
+                        (album_name, release_date, album_image_url, submitted_by, album_id),
+                    )
+                else:
+                    album_id = f"local_{uuid.uuid4().hex}"
+                    cur.execute(
+                        "INSERT INTO albums (album_id, album_name, release_date, album_image_url, status, added_at, submitted_by) "
+                        "VALUES (%s,%s,%s,%s,'pending',CURRENT_DATE,%s)",
+                        (album_id, album_name, release_date, album_image_url, submitted_by),
+                    )
+                # If analyst chose a new main artist, relink all tracks under this album to that artist
+                if main_artist_id:
+                    cur.execute(
+                        """
+                        UPDATE track_artist
+                        SET artist_id = %s
+                        WHERE track_id IN (
+                          SELECT track_id FROM album_tracks WHERE album_id = %s
+                        )
+                        """,
+                        (main_artist_id, album_id),
+                    )
+                conn.commit()
+        flash("Album saved.")
+        return redirect(url_for("analyst_edit_album", album_id=album_id))
+
+    album = None
+    album_tracks = []
+    main_artist = None
+    if album_id:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT album_id, album_name, release_date, album_image_url FROM albums WHERE album_id = %s",
+                    (album_id,),
+                )
+                row = cur.fetchone()
+                if row:
+                    album = {
+                        "album_id": row[0],
+                        "album_name": row[1],
+                        "release_date": str(row[2]) if row[2] else "",
+                        "album_image_url": row[3],
+                    }
+                    cur.execute(
+                        """
+                        WITH at_tracks AS (
+                          SELECT t.track_id, t.popularity, ta.artist_id
+                          FROM album_tracks at
+                          JOIN tracks t ON t.track_id = at.track_id
+                          LEFT JOIN track_artist ta ON ta.track_id = t.track_id
+                          WHERE at.album_id = %s
+                        ),
+                        artist_score AS (
+                          SELECT artist_id, SUM(popularity)::numeric AS artist_pop
+                          FROM at_tracks WHERE artist_id IS NOT NULL
+                          GROUP BY artist_id
+                        ),
+                        best_artist AS (
+                          SELECT ar.artist_id, ar.artist_name
+                          FROM artist_score s
+                          JOIN artists ar ON ar.artist_id = s.artist_id
+                          ORDER BY s.artist_pop DESC NULLS LAST
+                          LIMIT 1
+                        )
+                        SELECT artist_id, artist_name FROM best_artist
+                        """,
+                        (album_id,),
+                    )
+                    ba = cur.fetchone()
+                    if ba:
+                        main_artist = {"artist_id": ba[0], "artist_name": ba[1]}
+                    cur.execute(
+                        """
+                        SELECT
+                          at.disc_number,
+                          at.track_number,
+                          t.track_name,
+                          COALESCE(ar.artist_name, '') AS artist_name
+                        FROM album_tracks at
+                        JOIN tracks t ON t.track_id = at.track_id
+                        LEFT JOIN track_artist ta ON ta.track_id = t.track_id
+                        LEFT JOIN artists ar ON ar.artist_id = ta.artist_id
+                        WHERE at.album_id = %s
+                        ORDER BY COALESCE(at.disc_number, 1), COALESCE(at.track_number, 1), t.track_name
+                        """,
+                        (album_id,),
+                    )
+                    album_tracks = [
+                        {
+                            "disc_number": r[0],
+                            "track_number": r[1],
+                            "track_name": r[2],
+                            "artist_name": r[3],
+                        }
+                        for r in cur.fetchall()
+                    ]
+
+    return render_template(
+        "analyst_edit.html",
+        mode="album",
+        album=album,
+        album_tracks=album_tracks,
+        main_artist=main_artist,
+        big7=BIG7,
+    )
+
 @app.route("/analyst/edit", methods=["GET", "POST"])
 def analyst_edit():
     track_id = request.args.get("track_id", "").strip() if request.method == "GET" else request.form.get("track_id", "").strip()
@@ -1591,24 +2233,50 @@ def analyst_edit():
                         cur.execute("DELETE FROM tracks WHERE track_id = %s", (track_id,))
                         conn.commit()
                 flash("Track deleted.")
-            return redirect(url_for("analyst"))
+            return redirect(url_for("manage_list", tab="songs"))
         # Save
         if not track_id:
             flash("No track selected to save.")
-            return redirect(url_for("analyst"))
+            return redirect(url_for("manage_list", tab="songs"))
         track_name = request.form.get("track_name", "").strip() or None
         duration_ms = request.form.get("duration_ms", "").strip()
         duration_ms = int(duration_ms) if duration_ms.isdigit() else None
         preview_url = request.form.get("preview_url", "").strip() or None
         release_date = request.form.get("release_date", "").strip() or None
         album_cover_url = request.form.get("album_cover_url", "").strip() or None
+        explicit_raw = request.form.get("explicit")
+        # checkbox: value \"1\" when checked, missing when not
+        explicit_flag = True if explicit_raw == "1" else False
         genres = [g for g in request.form.getlist("genre") if g in BIG7]
+
+        # Audio features manual override (optional)
+        def _parse_float(val):
+            val = (val or "").strip()
+            if not val:
+                return None
+            try:
+                return float(val)
+            except ValueError:
+                return None
+
+        danceability = _parse_float(request.form.get("danceability"))
+        energy = _parse_float(request.form.get("energy"))
+        valence = _parse_float(request.form.get("valence"))
+        acousticness = _parse_float(request.form.get("acousticness"))
+        loudness = _parse_float(request.form.get("loudness"))
+        tempo = _parse_float(request.form.get("tempo"))
+
+        disc_number_raw = (request.form.get("disc_number") or "").strip()
+        disc_number = int(disc_number_raw) if disc_number_raw.isdigit() else None
+        track_number_raw = (request.form.get("track_number") or "").strip()
+        track_number = int(track_number_raw) if track_number_raw.isdigit() else None
 
         with get_conn() as conn:
             with conn.cursor() as cur:
+                submitted_by = session.get("admin_user_id")
                 cur.execute(
-                    "UPDATE tracks SET track_name=COALESCE(%s,track_name), duration_ms=COALESCE(%s,duration_ms), preview_url=COALESCE(%s,preview_url) WHERE track_id=%s",
-                    (track_name, duration_ms, preview_url, track_id),
+                    "UPDATE tracks SET track_name=COALESCE(%s,track_name), duration_ms=COALESCE(%s,duration_ms), preview_url=COALESCE(%s,preview_url), explicit=%s, submitted_by=COALESCE(%s, submitted_by) WHERE track_id=%s",
+                    (track_name, duration_ms, preview_url, explicit_flag, submitted_by, track_id),
                 )
                 if release_date or album_cover_url is not None:
                     cur.execute(
@@ -1616,6 +2284,46 @@ def analyst_edit():
                            WHERE album_id = (SELECT album_id FROM album_tracks WHERE track_id=%s LIMIT 1)""",
                         (release_date if release_date else None, album_cover_url if album_cover_url else None, track_id),
                     )
+                # Upsert audio features; keep other columns nullable
+                cur.execute(
+                    """
+                    INSERT INTO audio_features (track_id, danceability, energy, valence, acousticness, loudness, tempo)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s)
+                    ON CONFLICT (track_id) DO UPDATE SET
+                      danceability = EXCLUDED.danceability,
+                      energy       = EXCLUDED.energy,
+                      valence      = EXCLUDED.valence,
+                      acousticness = EXCLUDED.acousticness,
+                      loudness     = EXCLUDED.loudness,
+                      tempo        = EXCLUDED.tempo
+                    """,
+                    (track_id, danceability, energy, valence, acousticness, loudness, tempo),
+                )
+
+                # Update relations: track_artist
+                cur.execute("DELETE FROM track_artist WHERE track_id = %s", (track_id,))
+                artist_id = (request.form.get("artist_id") or "").strip()
+                if artist_id:
+                    cur.execute(
+                        "INSERT INTO track_artist (track_id, artist_id) VALUES (%s,%s) ON CONFLICT (track_id, artist_id) DO NOTHING",
+                        (track_id, artist_id),
+                    )
+
+                # Update relations: album_tracks (album + disc / track #)
+                cur.execute("DELETE FROM album_tracks WHERE track_id = %s", (track_id,))
+                album_id = (request.form.get("album_id") or "").strip()
+                if album_id:
+                    cur.execute(
+                        """
+                        INSERT INTO album_tracks (album_id, track_id, disc_number, track_number)
+                        VALUES (%s,%s,%s,%s)
+                        ON CONFLICT (album_id, track_id) DO UPDATE SET
+                          disc_number = EXCLUDED.disc_number,
+                          track_number = EXCLUDED.track_number
+                        """,
+                        (album_id, track_id, disc_number, track_number),
+                    )
+
                 cur.execute("DELETE FROM track_genres WHERE track_id = %s", (track_id,))
                 for g in genres:
                     cur.execute(
@@ -1633,14 +2341,33 @@ def analyst_edit():
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT t.track_id, t.track_name, t.duration_ms, t.preview_url,
-                           ar.artist_id, ar.artist_name,
-                           al.album_id, al.album_name, al.release_date, al.album_image_url
+                    SELECT
+                      t.track_id,
+                      t.track_name,
+                      t.duration_ms,
+                      t.preview_url,
+                      t.explicit,
+                      t.status,
+                      ar.artist_id,
+                      ar.artist_name,
+                      al.album_id,
+                      al.album_name,
+                      al.release_date,
+                      al.album_image_url,
+                      at.disc_number,
+                      at.track_number,
+                      af.danceability,
+                      af.energy,
+                      af.valence,
+                      af.acousticness,
+                      af.loudness,
+                      af.tempo
                     FROM tracks t
                     LEFT JOIN track_artist ta ON ta.track_id = t.track_id
                     LEFT JOIN artists ar ON ar.artist_id = ta.artist_id
                     LEFT JOIN album_tracks at ON at.track_id = t.track_id
                     LEFT JOIN albums al ON al.album_id = at.album_id
+                    LEFT JOIN audio_features af ON af.track_id = t.track_id
                     WHERE t.track_id = %s
                     LIMIT 1
                     """,
@@ -1655,12 +2382,22 @@ def analyst_edit():
                         "track_name": row[1],
                         "duration_ms": row[2],
                         "preview_url": row[3],
-                        "artist_id": row[4],
-                        "artist_name": row[5],
-                        "album_id": row[6],
-                        "album_name": row[7],
-                        "release_date": str(row[8]) if row[8] else None,
-                        "album_image_url": row[9],
+                        "explicit": row[4],
+                        "status": row[5],
+                        "artist_id": row[6],
+                        "artist_name": row[7],
+                        "album_id": row[8],
+                        "album_name": row[9],
+                        "release_date": str(row[10]) if row[10] else None,
+                        "album_image_url": row[11],
+                        "disc_number": row[12],
+                        "track_number": row[13],
+                        "danceability": row[14],
+                        "energy": row[15],
+                        "valence": row[16],
+                        "acousticness": row[17],
+                        "loudness": row[18],
+                        "tempo": row[19],
                         "genre_names": genre_names,
                     }
 

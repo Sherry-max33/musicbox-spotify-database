@@ -141,6 +141,15 @@
       font-size:13px;
       font-family:var(--mono);
     }
+    /* remove bright default number spinners, keep dark theme */
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button{
+      -webkit-appearance:none;
+      margin:0;
+    }
+    input[type="number"]{
+      -moz-appearance:textfield;
+    }
     input:focus{
       border-color: rgba(0,245,160,.5);
       box-shadow: 0 0 0 4px rgba(0,245,160,.12);
@@ -165,7 +174,11 @@
       list-style:none;max-height:220px;overflow-y:auto;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,.4);
     }
     .suggest-list li{
-      padding:10px 14px;cursor:pointer;font-size:13px;color:var(--text);
+      padding:8px 18px;
+      cursor:pointer;
+      font-size:14px;
+      font-weight:800;
+      color:var(--text);
       border-bottom:1px solid rgba(255,255,255,.04);
     }
     .suggest-list li:last-child{border-bottom:0}
@@ -211,6 +224,83 @@
       gap:10px;
     }
 
+    .readonly-table{
+      font-family:var(--mono);
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0 6px;
+      font-size:14px;
+    }
+    .readonly-table th,
+    .readonly-table td{
+      font-family:inherit;
+      padding:8px 10px;
+      text-align:left;
+    }
+    .readonly-table th{
+      font-size:12px;
+      letter-spacing:.6px;
+      color:var(--muted);
+      text-transform:uppercase;
+    }
+    .readonly-table td{
+      color:var(--text);
+    }
+    .readonly-table .cell-date{
+      font-family:inherit;
+    }
+
+    .status-row{
+      grid-column:1 / -1;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-bottom:4px;
+    }
+    .status-label{
+      font-family:var(--mono);
+      font-size:12px;
+      color:var(--muted);
+      letter-spacing:.6px;
+      text-transform:uppercase;
+    }
+    .status-pill{
+      display:inline-flex;
+      align-items:center;
+      padding:4px 10px;
+      border-radius:999px;
+      font-family:var(--mono);
+      font-size:11px;
+      letter-spacing:.6px;
+    }
+    .status-pill.pending{
+      background:rgba(255,206,84,.12);
+      border:1px solid rgba(255,206,84,.55);
+      color:#ffce54;
+    }
+    .status-pill.approved{
+      background:rgba(0,245,160,.10);
+      border:1px solid rgba(0,245,160,.55);
+      color:var(--accent);
+    }
+    .status-pill.rejected{
+      background:rgba(255,99,132,.12);
+      border:1px solid rgba(255,99,132,.55);
+      color:#ff6384;
+    }
+
+    .toggle-wrap{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-size:13px;
+      color:var(--muted);
+    }
+    .toggle-wrap input[type="checkbox"]{
+      width:18px;height:18px;
+      accent-color: var(--accent);
+    }
+
     @media (max-width: 780px){
       .grid{grid-template-columns:1fr;}
       .two{grid-template-columns:1fr;}
@@ -221,6 +311,17 @@
 </head>
 <body>
   <div class="wrap">
+    {% set mode = mode or 'track' %}
+    {% if mode == 'artist' %}
+      {% set crumb_label = 'Artist' %}
+      {% set back_url = url_for('manage_list', tab='artists') %}
+    {% elif mode == 'album' %}
+      {% set crumb_label = 'Album' %}
+      {% set back_url = url_for('manage_list', tab='albums') %}
+    {% else %}
+      {% set crumb_label = 'Tracks' %}
+      {% set back_url = url_for('manage_list', tab='songs') %}
+    {% endif %}
     {% with messages = get_flashed_messages() %}
     {% if messages %}
     <div style="margin-bottom:12px;padding:12px;border-radius:14px;background:rgba(0,245,160,.12);border:1px solid rgba(0,245,160,.4);color:var(--text);">{{ messages[0] }}</div>
@@ -232,18 +333,19 @@
           <div class="logo-badge"><span style="display:inline-block;transform:translateY(1px);">♪</span></div>
           <div class="brand">
             <div class="name">MusicBox <span style="color:var(--muted);font-weight:900">Admin</span></div>
-            <div class="crumb">Tracks • Add / Edit</div>
+            <div class="crumb">{{ crumb_label }} • Add / Edit</div>
           </div>
         </div>
         <button class="btn secondary" type="submit" form="editForm">Save</button>
       </div>
 
-      <a class="linkback" href="{{ url_for('analyst') }}">
+      <a class="linkback" href="{{ back_url }}">
         <span class="pill">←</span>
         <span>Back to list</span>
       </a>
 
       <div class="content">
+        {% if mode == 'track' %}
         <form method="post" action="{{ url_for('analyst_edit') }}" id="editForm">
           <input type="hidden" name="delete" id="deleteFlag" value="0" />
           {% if track %}
@@ -254,6 +356,13 @@
           <div class="section">
             <h3>Track Info</h3>
             <div class="grid">
+              {% if track %}
+              <div class="status-row">
+                <span class="status-label">Status</span>
+                {% set st = (track.status or 'pending')|lower %}
+                <span class="status-pill {{ st }}">{{ st|capitalize }}</span>
+              </div>
+              {% endif %}
               <label for="track_name">Track Name</label>
               <input id="track_name" name="track_name" type="text" placeholder="e.g., Rolling in the Deep" value="{{ track.track_name if track else '' }}" />
 
@@ -265,6 +374,12 @@
 
               <label for="preview_url">Preview URL</label>
               <input id="preview_url" name="preview_url" type="url" placeholder="https://..." value="{{ (track.preview_url or '') if track else '' }}" />
+
+              <label for="explicit_toggle">Explicit</label>
+              <div class="toggle-wrap">
+                <input id="explicit_toggle" type="checkbox" name="explicit" value="1"{% if track and track.explicit %} checked{% endif %} />
+                <span>Mark as explicit content</span>
+              </div>
             </div>
           </div>
 
@@ -273,17 +388,31 @@
             <h3>Relations</h3>
             <div class="grid">
               <label for="artist">Artist</label>
-              <div class="search-wrap" style="position:relative;">
+              <div class="search-wrap rel" style="position:relative;">
                 <input id="artist" type="text" autocomplete="off" placeholder="search artist / add new" value="{{ (track.artist_name or '') if track else '' }}" />
                 <input type="hidden" name="artist_id" id="artist_id" value="{{ (track.artist_id or '') if track else '' }}" />
                 <ul id="artistSuggest" class="suggest-list" style="display:none;"></ul>
+                <a class="btn secondary addnew" href="{{ url_for('analyst_edit_artist') }}" target="_blank" rel="noreferrer">+ Add New Artist</a>
               </div>
 
               <label for="album">Album</label>
-              <div class="search-wrap" style="position:relative;">
+              <div class="search-wrap rel" style="position:relative;">
                 <input id="album" type="text" autocomplete="off" placeholder="search album / add new" value="{{ (track.album_name or '') if track else '' }}" />
                 <input type="hidden" name="album_id" id="album_id" value="{{ (track.album_id or '') if track else '' }}" />
                 <ul id="albumSuggest" class="suggest-list" style="display:none;"></ul>
+                <a class="btn secondary addnew" href="{{ url_for('analyst_edit_album') }}" target="_blank" rel="noreferrer">+ Add New Album</a>
+              </div>
+
+              <label></label>
+              <div class="two">
+                <div>
+                  <label for="disc_number">Disc #</label>
+                  <input id="disc_number" name="disc_number" type="number" min="1" step="1" placeholder="e.g., 1" value="{{ track.disc_number if track and track.disc_number is not none else '' }}" />
+                </div>
+                <div>
+                  <label for="track_number">Track #</label>
+                  <input id="track_number" name="track_number" type="number" min="1" step="1" placeholder="e.g., 3" value="{{ track.track_number if track and track.track_number is not none else '' }}" />
+                </div>
               </div>
             </div>
           </div>
@@ -301,6 +430,30 @@
             </div>
           </div>
 
+          <!-- Audio Features (manual override) -->
+          <div class="section">
+            <h3>Audio Features (override)</h3>
+            <div class="grid">
+              <label for="danceability">danceability</label>
+              <input id="danceability" name="danceability" type="number" min="0" max="1" step="0.01" placeholder="0.0 – 1.0" value="{{ track.danceability if track and track.danceability is not none else '' }}" />
+
+              <label for="energy">energy</label>
+              <input id="energy" name="energy" type="number" min="0" max="1" step="0.01" placeholder="0.0 – 1.0" value="{{ track.energy if track and track.energy is not none else '' }}" />
+
+              <label for="valence">valence</label>
+              <input id="valence" name="valence" type="number" min="0" max="1" step="0.01" placeholder="0.0 – 1.0" value="{{ track.valence if track and track.valence is not none else '' }}" />
+
+              <label for="acousticness">acousticness</label>
+              <input id="acousticness" name="acousticness" type="number" min="0" max="1" step="0.01" placeholder="0.0 – 1.0" value="{{ track.acousticness if track and track.acousticness is not none else '' }}" />
+
+              <label for="tempo">tempo (BPM)</label>
+              <input id="tempo" name="tempo" type="number" min="0" max="999" step="0.1" placeholder="e.g., 120.0" value="{{ track.tempo if track and track.tempo is not none else '' }}" />
+
+              <label for="loudness">loudness (dB)</label>
+              <input id="loudness" name="loudness" type="number" min="-60" max="5" step="0.1" placeholder="e.g., -7.0" value="{{ track.loudness if track and track.loudness is not none else '' }}" />
+            </div>
+          </div>
+
           <!-- Cover -->
           <div class="section">
             <h3>Cover (optional, from album)</h3>
@@ -312,11 +465,147 @@
 
           <!-- Footer Actions (与 track_add_edit_mockup_dark_v2.html 一致) -->
           <div class="footer">
-            <a class="btn secondary" href="{{ url_for('analyst') }}">Cancel</a>
+            <a class="btn secondary" href="{{ back_url }}">Cancel</a>
             <button class="btn" type="submit">Save</button>
             <button class="btn danger" type="button">Delete</button>
           </div>
         </form>
+
+        {% elif mode == 'artist' %}
+        <form method="post" action="{{ url_for('analyst_edit_artist') }}" id="editForm">
+          <input type="hidden" name="delete" id="deleteFlag" value="0" />
+          <input type="hidden" name="artist_id" value="{{ artist.artist_id if artist else '' }}" />
+
+          <div class="section">
+            <h3>Artist Info</h3>
+            <div class="grid">
+              <label for="artist_name">Artist Name</label>
+              <input id="artist_name" name="artist_name" type="text" placeholder="e.g., Taylor Swift" value="{{ artist.artist_name if artist else '' }}" />
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Artist Genre</h3>
+            <div class="grid">
+              <label>Genre</label>
+              <div class="pills" id="genrePills">
+                {% set current = artist_genres or [] %}
+                {% for g in big7 %}
+                <label class="pill-radio{% if g in current %} active{% endif %}"><input type="checkbox" name="genre" value="{{ g }}"{% if g in current %} checked{% endif %}>{{ g }}</label>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Albums (read-only)</h3>
+            <div class="grid">
+              <label>Albums</label>
+              <div>
+                {% if artist_albums %}
+                <table class="readonly-table">
+                  <thead>
+                    <tr>
+                      <th>Album</th>
+                      <th>Year</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for a in artist_albums %}
+                    <tr>
+                      <td>{{ a.album_name }}</td>
+                      <td>{{ a.release_year or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+                {% else %}
+                <div style="color:var(--muted);font-family:var(--mono);">No albums linked yet.</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="footer">
+            <a class="btn secondary" href="{{ back_url }}">Cancel</a>
+            <button class="btn" type="submit">Save</button>
+            <button class="btn danger" type="button">Delete</button>
+          </div>
+        </form>
+
+        {% elif mode == 'album' %}
+        <form method="post" action="{{ url_for('analyst_edit_album') }}" id="editForm">
+          <input type="hidden" name="delete" id="deleteFlag" value="0" />
+          <input type="hidden" name="album_id" value="{{ album.album_id if album else '' }}" />
+
+          <div class="section">
+            <h3>Album Info</h3>
+            <div class="grid">
+              <label for="album_name">Album Name</label>
+              <input id="album_name" name="album_name" type="text" placeholder="e.g., Midnights" value="{{ album.album_name if album else '' }}" />
+
+              <label for="release_date">Release Date</label>
+              <input id="release_date" name="release_date" type="date" value="{{ album.release_date or '' }}" />
+
+              <label for="album_image_url">Album Cover URL</label>
+              <input id="album_image_url" name="album_image_url" type="url" placeholder="https://..." value="{{ album.album_image_url if album else '' }}" />
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Relations</h3>
+            <div class="grid">
+              <label>Main Artist</label>
+              <div>
+                <div class="search-wrap rel" style="position:relative;">
+                  <input id="main_artist" type="text" autocomplete="off" placeholder="search main artist" value="{{ main_artist.artist_name if main_artist else '' }}" />
+                  <input type="hidden" name="main_artist_id" id="main_artist_id" value="{{ main_artist.artist_id if main_artist else '' }}" />
+                  <ul id="mainArtistSuggest" class="suggest-list" style="display:none;"></ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Tracklist (read-only)</h3>
+            <div class="grid">
+              <label>Tracks</label>
+              <div>
+                {% if album_tracks %}
+                <table class="readonly-table">
+                  <thead>
+                    <tr>
+                      <th style="width:70px;">Disc #</th>
+                      <th style="width:70px;">Track #</th>
+                      <th>Track</th>
+                      <th>Artist</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for t in album_tracks %}
+                    <tr>
+                      <td class="cell-date">{{ t.disc_number or '—' }}</td>
+                      <td class="cell-date">{{ t.track_number or '—' }}</td>
+                      <td>{{ t.track_name }}</td>
+                      <td>{{ t.artist_name or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+                {% else %}
+                <div style="color:var(--muted);font-family:var(--mono);">No tracks linked yet.</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="footer">
+            <a class="btn secondary" href="{{ back_url }}">Cancel</a>
+            <button class="btn" type="submit">Save</button>
+            <button class="btn danger" type="button">Delete</button>
+          </div>
+        </form>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -328,10 +617,13 @@
       var albumUrl = "{{ url_for('analyst_edit_search_albums') }}";
       var artistInput = document.getElementById('artist');
       var albumInput = document.getElementById('album');
+       var mainArtistInput = document.getElementById('main_artist');
       var artistSuggest = document.getElementById('artistSuggest');
       var albumSuggest = document.getElementById('albumSuggest');
+       var mainArtistSuggest = document.getElementById('mainArtistSuggest');
       var artistIdEl = document.getElementById('artist_id');
       var albumIdEl = document.getElementById('album_id');
+       var mainArtistIdEl = document.getElementById('main_artist_id');
 
       function debounce(fn, ms){ var t; return function(){ clearTimeout(t); t=setTimeout(fn,ms); }; }
 
@@ -348,47 +640,83 @@
         albumSuggest.style.display = 'block';
       }
 
-      artistInput.addEventListener('input', debounce(function(){
-        var q = artistInput.value.trim();
-        if (!q){ artistSuggest.style.display='none'; return; }
-        fetch(artistUrl + '?q=' + encodeURIComponent(q)).then(function(r){ return r.json(); }).then(showArtistSuggest).catch(function(){ showArtistSuggest([]); });
-      }, 200));
-      artistInput.addEventListener('focus', function(){ if (artistSuggest.innerHTML) artistSuggest.style.display='block'; });
-      artistSuggest.addEventListener('click', function(e){
-        var li = e.target.closest('li[data-id]');
-        if (li){ artistInput.value = li.getAttribute('data-name'); artistIdEl.value = li.getAttribute('data-id'); artistSuggest.style.display='none'; }
-      });
+      if (artistInput && artistSuggest && artistIdEl) {
+        artistInput.addEventListener('input', debounce(function(){
+          var q = artistInput.value.trim();
+          if (!q){ artistSuggest.style.display='none'; return; }
+          fetch(artistUrl + '?q=' + encodeURIComponent(q)).then(function(r){ return r.json(); }).then(showArtistSuggest).catch(function(){ showArtistSuggest([]); });
+        }, 200));
+        artistInput.addEventListener('focus', function(){ if (artistSuggest.innerHTML) artistSuggest.style.display='block'; });
+        artistSuggest.addEventListener('click', function(e){
+          var li = e.target.closest('li[data-id]');
+          if (li){ artistInput.value = li.getAttribute('data-name'); artistIdEl.value = li.getAttribute('data-id'); artistSuggest.style.display='none'; }
+        });
+      }
 
-      albumInput.addEventListener('input', debounce(function(){
-        var q = albumInput.value.trim();
-        if (!q){ albumSuggest.style.display='none'; return; }
-        fetch(albumUrl + '?q=' + encodeURIComponent(q)).then(function(r){ return r.json(); }).then(showAlbumSuggest).catch(function(){ showAlbumSuggest([]); });
-      }, 200));
-      albumInput.addEventListener('focus', function(){ if (albumSuggest.innerHTML) albumSuggest.style.display='block'; });
-      albumSuggest.addEventListener('click', function(e){
-        var li = e.target.closest('li[data-id]');
-        if (li){ albumInput.value = li.getAttribute('data-name'); albumIdEl.value = li.getAttribute('data-id'); albumSuggest.style.display='none'; }
-      });
+      if (albumInput && albumSuggest && albumIdEl) {
+        albumInput.addEventListener('input', debounce(function(){
+          var q = albumInput.value.trim();
+          if (!q){ albumSuggest.style.display='none'; return; }
+          fetch(albumUrl + '?q=' + encodeURIComponent(q)).then(function(r){ return r.json(); }).then(showAlbumSuggest).catch(function(){ showAlbumSuggest([]); });
+        }, 200));
+        albumInput.addEventListener('focus', function(){ if (albumSuggest.innerHTML) albumSuggest.style.display='block'; });
+        albumSuggest.addEventListener('click', function(e){
+          var li = e.target.closest('li[data-id]');
+          if (li){ albumInput.value = li.getAttribute('data-name'); albumIdEl.value = li.getAttribute('data-id'); albumSuggest.style.display='none'; }
+        });
+      }
+
+      if (mainArtistInput && mainArtistSuggest && mainArtistIdEl) {
+        function showMainArtistSuggest(items){
+          mainArtistSuggest.innerHTML = items.length ? items.map(function(o){
+            return '<li data-id="'+ (o.artist_id||'').replace(/\"/g,'&quot;') +'" data-name="'+ (o.artist_name||'').replace(/\"/g,'&quot;') +'">'+ (o.artist_name||'').replace(/</g,'&lt;') +'</li>';
+          }).join('') : '<li style=\"color:var(--muted)\">No results</li>';
+          mainArtistSuggest.style.display = 'block';
+        }
+        mainArtistInput.addEventListener('input', debounce(function(){
+          var q = mainArtistInput.value.trim();
+          if (!q){ mainArtistSuggest.style.display='none'; return; }
+          fetch(artistUrl + '?q=' + encodeURIComponent(q)).then(function(r){ return r.json(); }).then(showMainArtistSuggest).catch(function(){ showMainArtistSuggest([]); });
+        }, 200));
+        mainArtistInput.addEventListener('focus', function(){ if (mainArtistSuggest.innerHTML) mainArtistSuggest.style.display='block'; });
+        mainArtistSuggest.addEventListener('click', function(e){
+          var li = e.target.closest('li[data-id]');
+          if (li){ mainArtistInput.value = li.getAttribute('data-name'); mainArtistIdEl.value = li.getAttribute('data-id'); mainArtistSuggest.style.display='none'; }
+        });
+      }
 
       document.addEventListener('click', function(e){
         if (!e.target.closest('.search-wrap')){ artistSuggest.style.display='none'; albumSuggest.style.display='none'; }
       });
     })();
 
-    // 多选：点击 pill 后根据 checkbox 状态同步 active 样式
-    document.querySelectorAll('#genrePills .pill-radio').forEach(lab=>{
-      lab.addEventListener('click', ()=>{
-        var cb = lab.querySelector('input[type="checkbox"]');
+    // 多选：点击 pill 后手动切换 checkbox + active 样式（兼容不同模式：track / artist）
+    document.querySelectorAll('#genrePills .pill-radio').forEach(function(lab){
+      lab.addEventListener('click', function(e){
+        var cb = lab.querySelector('input[type=\"checkbox\"]');
+        if (!cb) return;
+        e.preventDefault();
+        cb.checked = !cb.checked;
         lab.classList.toggle('active', cb.checked);
       });
     });
-    // Delete: confirm then submit with delete=1
-    var btn = document.querySelector('.footer .btn.danger');
-    if (btn) {
-      btn.addEventListener('click', function(){
-        if (document.querySelector('input[name="track_id"]') && confirm('Delete this track?')) {
-          document.getElementById('deleteFlag').value = '1';
-          document.getElementById('editForm').submit();
+    // Delete: confirm then submit with delete=1（支持 track / album / artist）
+    var delBtn = document.querySelector('.footer .btn.danger');
+    if (delBtn) {
+      delBtn.addEventListener('click', function(){
+        var form = document.getElementById('editForm');
+        if (!form) return;
+        var isTrack = !!form.querySelector('input[name="track_id"]');
+        var isAlbum = !!form.querySelector('input[name="album_id"]');
+        var isArtist = !!form.querySelector('input[name="artist_id"]');
+        var label = 'item';
+        if (isAlbum) label = 'album';
+        else if (isArtist) label = 'artist';
+        else if (isTrack) label = 'track';
+        if ((isTrack || isAlbum || isArtist) && confirm('Delete this ' + label + '?')) {
+          var delFlag = document.getElementById('deleteFlag');
+          if (delFlag) delFlag.value = '1';
+          form.submit();
         }
       });
     }

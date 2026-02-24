@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MusicBox Admin • Manage List</title>
+  <style>
+    :root{
+      --bg:#0b0b0b;
+      --panel:#121212;
+      --text:#eaeaea;
+      --muted:#a7a7a7;
+      --border:#2b2b2b;
+      --accent:#00f5a0;
+      --radius:18px;
+      --shadow: 0 12px 34px rgba(0,0,0,.45);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      color:var(--text);
+      background: var(--bg);
+    }
+    .wrap{
+      max-width:1180px;
+      margin:22px auto;
+      padding:0 18px 60px;
+      background: var(--bg);
+    }
+
+    .shell{
+      border:1px solid var(--border);
+      border-radius:22px;
+      background:rgba(18,18,18,.78);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+
+    .top{
+      padding:18px 20px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      display:flex;align-items:center;justify-content:space-between;gap:16px;
+    }
+    .brandwrap{display:flex;align-items:center;gap:14px;}
+    .logo-badge{
+      width:34px;height:34px;border-radius:10px;
+      background:linear-gradient(135deg,var(--accent),rgba(0,245,160,.25));
+      display:grid;place-items:center;
+      color:#000;font-weight:900;font-size:18px;line-height:1;
+      flex:0 0 auto;
+    }
+    .brand .name{font-weight:1000;letter-spacing:.2px;font-size:16px;line-height:1.1;}
+    .brand .crumb{margin-top:4px;font-family:var(--mono);color:var(--muted);font-size:12px;}
+    .user-pill{
+      padding:8px 12px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.04);
+      font-family:var(--mono);
+      font-size:12px;
+      color:var(--muted);
+      max-width:260px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .tabs{
+      display:flex;
+      gap:8px;
+      padding:10px 20px 0;
+      border-bottom:1px solid rgba(255,255,255,.06);
+    }
+    .tabs .tabs-add{
+      margin-left:auto;
+    }
+    .tab{
+      border:none;
+      background:transparent;
+      padding:8px 14px;
+      border-radius:999px;
+      color:var(--muted);
+      font-family:var(--mono);
+      font-size:12px;
+      cursor:pointer;
+      text-decoration:none;
+    }
+    .tab.active{
+      color:var(--text);
+      background:rgba(0,245,160,.12);
+      border:1px solid rgba(0,245,160,.45);
+    }
+
+    .content{padding:16px 18px 20px;}
+
+    .filterbar{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      padding:12px 14px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.08);
+      background:rgba(0,0,0,.22);
+      margin-bottom:14px;
+    }
+    .filter-group{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      font-family:var(--mono);
+      font-size:12px;
+      color:var(--muted);
+    }
+    .filter-group label{
+      font-size:11px;
+      letter-spacing:.7px;
+      text-transform:uppercase;
+    }
+    .filter-select, .filter-input{
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.03);
+      color:var(--text);
+      font-family:var(--mono);
+      font-size:12px;
+      padding:7px 22px 7px 10px;
+      outline:none;
+    }
+    .filter-input{
+      padding-right:10px;
+      font-size:13px;
+      min-width:200px;
+      border-radius:999px;
+    }
+    .filter-toggle{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      font-size:12px;
+      color:var(--muted);
+      font-family:var(--mono);
+    }
+    .filter-toggle input{
+      width:16px;height:16px;
+      accent-color: var(--accent);
+    }
+
+    table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0 8px;
+    }
+    .cell-date{
+      font-family:var(--mono);
+      font-size:13px;
+    }
+    thead th{
+      text-align:left;
+      font-family:var(--mono);
+      font-size:11px;
+      letter-spacing:.7px;
+      color:var(--muted);
+      padding:4px 10px;
+    }
+    tbody tr{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--border);
+      border-radius:14px;
+      overflow:hidden;
+    }
+    tbody td{
+      padding:10px;
+      vertical-align:middle;
+    }
+    .cell-cover img{
+      width:40px;height:40px;
+      border-radius:10px;
+      object-fit:cover;
+      display:block;
+      border:1px solid rgba(255,255,255,.10);
+    }
+    .cell-main{
+      font-weight:900;
+      font-size:14px;
+    }
+    .cell-sub{
+      margin-top:3px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .status-badge{
+      display:inline-flex;
+      align-items:center;
+      padding:4px 10px;
+      border-radius:999px;
+      font-family:var(--mono);
+      font-size:11px;
+      letter-spacing:.6px;
+      text-transform:uppercase;
+    }
+    .status-badge.approved{
+      background:rgba(0,245,160,.10);
+      border:1px solid rgba(0,245,160,.55);
+      color:var(--accent);
+    }
+    .status-badge.pending{
+      background:rgba(255,206,84,.12);
+      border:1px solid rgba(255,206,84,.55);
+      color:#ffce54;
+    }
+    .status-badge.rejected{
+      background:rgba(255,99,132,.12);
+      border:1px solid rgba(255,99,132,.55);
+      color:#ff6384;
+    }
+
+    .btn{
+      border-radius:16px;
+      border:1px solid rgba(0,245,160,.45);
+      background:rgba(0,245,160,.14);
+      color:var(--accent);
+      font-weight:900;
+      padding:8px 12px;
+      cursor:pointer;
+      font-size:12px;
+      font-family:var(--mono);
+      white-space:nowrap;
+      text-decoration:none;
+    }
+    .btn.secondary{
+      border-color:rgba(255,255,255,.16);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+    }
+
+    .pagination{
+      margin-top:14px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      font-family:var(--mono);
+      font-size:12px;
+      color:var(--muted);
+    }
+    .page-links{
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .page-links a{
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.03);
+      color:var(--muted);
+      text-decoration:none;
+      font-family:var(--mono);
+      font-size:11px;
+    }
+    .page-links a.active{
+      border-color:rgba(0,245,160,.55);
+      background:rgba(0,245,160,.14);
+      color:var(--text);
+    }
+
+    @media (max-width: 780px){
+      .filterbar{flex-direction:column;align-items:flex-start;}
+      .filter-input{min-width:0;width:100%;}
+      .top{flex-direction:column;align-items:flex-start;}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="shell">
+      <div class="top">
+        <div class="brandwrap">
+          <div class="logo-badge"><span style="display:inline-block;transform:translateY(1px);">♪</span></div>
+          <div class="brand">
+            <div class="name">MusicBox <span style="color:var(--muted);font-weight:900">Admin</span></div>
+            <div class="crumb">Manage List</div>
+          </div>
+        </div>
+        <div class="user-pill">
+          {{ current_email or 'anonymous' }} · {{ current_role or 'Analyst' }}
+        </div>
+      </div>
+
+      <div class="tabs">
+        <a href="{{ url_for('manage_list', tab='songs', status=status, mine=1 if mine else 0, q=q, decade=decade, genre=genre, page=1) }}" class="tab {% if tab == 'songs' %}active{% endif %}">Songs</a>
+        <a href="{{ url_for('manage_list', tab='artists', status=status, mine=1 if mine else 0, q=q, decade=decade, genre=genre, page=1) }}" class="tab {% if tab == 'artists' %}active{% endif %}">Artists</a>
+        <a href="{{ url_for('manage_list', tab='albums', status=status, mine=1 if mine else 0, q=q, decade=decade, genre=genre, page=1) }}" class="tab {% if tab == 'albums' %}active{% endif %}">Albums</a>
+        {% if tab == 'songs' %}
+        {% set add_label = '+ Add Song' %}
+        {% elif tab == 'artists' %}
+        {% set add_label = '+ Add Artist' %}
+        {% else %}
+        {% set add_label = '+ Add Album' %}
+        {% endif %}
+        <a href="{{ url_for('analyst') }}" class="btn tabs-add">{{ add_label }}</a>
+      </div>
+
+      <div class="content">
+        <form class="filterbar" method="get" action="{{ url_for('manage_list') }}">
+          <input type="hidden" name="tab" value="{{ tab }}" />
+          <div class="filter-group">
+            <label for="status">Status</label>
+            <select id="status" name="status" class="filter-select">
+              {% for key,label in [('all','All'),('pending','Pending'),('approved','Approved'),('rejected','Rejected')] %}
+              <option value="{{ key }}"{% if status == key %} selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="filter-toggle">
+            <input id="mine" type="checkbox" name="mine" value="1"{% if mine %} checked{% endif %} />
+            <label for="mine">Only my submissions</label>
+          </div>
+          <div class="filter-group" style="flex:1 1 260px;">
+            <label for="q">Search</label>
+            <input id="q" class="filter-input" name="q" value="{{ q or '' }}" placeholder="Search title / artist / album" autocomplete="off" spellcheck="false" />
+          </div>
+          <div class="filter-group">
+            <label for="decade">Decade</label>
+            <select id="decade" name="decade" class="filter-select">
+              <option value="all"{% if decade == 'all' %} selected{% endif %}>All</option>
+              {% for d in ['1950s','1960s','1970s','1980s','1990s','2000s','2010s','2020s'] %}
+              <option value="{{ d }}"{% if decade == d %} selected{% endif %}>{{ d }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="genre">Genre</label>
+            <select id="genre" name="genre" class="filter-select">
+              <option value="all"{% if genre == 'all' %} selected{% endif %}>All</option>
+              {% for g in big7 %}
+              <option value="{{ g }}"{% if genre == g %} selected{% endif %}>{{ g }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <a href="{{ url_for('manage_list', tab=tab) }}" class="btn secondary" style="align-self:flex-end;">Clear filters</a>
+        </form>
+
+        {% if tab == 'songs' %}
+        <table aria-label="Song management list">
+          <thead>
+            <tr>
+              <th style="width:52px;">Cover</th>
+              <th>Name / Entity</th>
+              <th style="width:120px;">Status</th>
+              <th style="width:150px;">Last Updated</th>
+              <th style="width:120px;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if items %}
+            {% for row in items %}
+            <tr>
+              <td class="cell-cover">
+                {% if row.cover_url %}
+                <img src="{{ row.cover_url }}" alt="" loading="lazy" onerror="this.style.display='none';" />
+                {% endif %}
+              </td>
+              <td>
+                <div class="cell-main">{{ row.name }}</div>
+                <div class="cell-sub">
+                  {{ row.artist_name or '—' }}
+                  {% if row.album_name %} · {{ row.album_name }}{% endif %}
+                </div>
+              </td>
+              <td>
+                {% set st = (row.status or 'pending')|lower %}
+                <span class="status-badge {{ st }}">{{ st|capitalize }}</span>
+              </td>
+              <td class="cell-date">{{ row.last_updated or '—' }}</td>
+              <td>
+                <a class="btn secondary" href="{{ url_for('analyst_edit') }}?track_id={{ row.id }}">Edit</a>
+              </td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr>
+              <td colspan="5" style="padding:18px 10px;color:var(--muted);font-family:var(--mono);font-size:13px;">No records matched.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+        {% elif tab == 'artists' %}
+        <table aria-label="Artist management list">
+          <thead>
+            <tr>
+              <th>Name / Entity</th>
+              <th style="width:120px;">Status</th>
+              <th style="width:150px;">Last Updated</th>
+              <th style="width:120px;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if items %}
+            {% for row in items %}
+            <tr>
+              <td>
+                <div class="cell-main">{{ row.name }}</div>
+              </td>
+              <td>
+                {% set st = (row.status or 'pending')|lower %}
+                <span class="status-badge {{ st }}">{{ st|capitalize }}</span>
+              </td>
+              <td class="cell-date">{{ row.last_updated or '—' }}</td>
+              <td>
+                <a class="btn secondary" href="{{ url_for('analyst_edit_artist') }}?artist_id={{ row.id }}" target="_blank" rel="noreferrer">Edit</a>
+              </td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr>
+              <td colspan="4" style="padding:18px 10px;color:var(--muted);font-family:var(--mono);font-size:13px;">No records matched.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+        {% elif tab == 'albums' %}
+        <table aria-label="Album management list">
+          <thead>
+            <tr>
+              <th style="width:52px;">Cover</th>
+              <th>Name / Entity</th>
+              <th style="width:120px;">Status</th>
+              <th style="width:150px;">Last Updated</th>
+              <th style="width:120px;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if items %}
+            {% for row in items %}
+            <tr>
+              <td class="cell-cover">
+                {% if row.cover_url %}
+                <img src="{{ row.cover_url }}" alt="" loading="lazy" onerror="this.style.display='none';" />
+                {% endif %}
+              </td>
+              <td>
+                <div class="cell-main">{{ row.name }}</div>
+              </td>
+              <td>
+                {% set st = (row.status or 'pending')|lower %}
+                <span class="status-badge {{ st }}">{{ st|capitalize }}</span>
+              </td>
+              <td class="cell-date">{{ row.last_updated or '—' }}</td>
+              <td>
+                <a class="btn secondary" href="{{ url_for('analyst_edit_album') }}?album_id={{ row.id }}" target="_blank" rel="noreferrer">Edit</a>
+              </td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr>
+              <td colspan="5" style="padding:18px 10px;color:var(--muted);font-family:var(--mono);font-size:13px;">No records matched.</td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+        {% endif %}
+
+        <div class="pagination">
+          <div>
+            {% if total > 0 %}
+            Showing {{ start_index }}–{{ end_index }} of {{ total }} records
+            {% else %}
+            Showing 0 records
+            {% endif %}
+          </div>
+          <div class="page-links">
+            {% if page > 1 %}
+            <a href="{{ url_for('manage_list', tab=tab, status=status, mine=1 if mine else 0, q=q, decade=decade, genre=genre, page=page-1) }}">Prev</a>
+            {% endif %}
+            {% for p in page_window %}
+            <a href="{{ url_for('manage_list', tab=tab, status=status, mine=1 if mine else 0, q=q, decade=decade, genre=genre, page=p) }}" class="{% if p == page %}active{% endif %}">{{ p }}</a>
+            {% endfor %}
+            {% if page < last_page %}
+            <a href="{{ url_for('manage_list', tab=tab, status=status, mine=1 if mine else 0, q=q, decade=decade, genre=genre, page=page+1) }}">Next</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function(){
+      var form = document.querySelector(".filterbar");
+      if (!form) return;
+      ["status","decade","genre","mine"].forEach(function(id){
+        var el = document.getElementById(id);
+        if (el) {
+          el.addEventListener("change", function(){ form.submit(); });
+        }
+      });
+      var qInput = document.getElementById("q");
+      if (qInput && form) {
+        qInput.addEventListener("keydown", function(e){
+          if (e.key === "Enter") {
+            e.preventDefault();
+            form.submit();
+          }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
+

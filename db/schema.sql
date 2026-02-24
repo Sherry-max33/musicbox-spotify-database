@@ -22,6 +22,7 @@ CREATE TABLE artists (
   artist_id VARCHAR(64) PRIMARY KEY,
   artist_name VARCHAR(300) NOT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'approved' CHECK (status IN ('pending','approved','rejected')),
+  added_at DATE,
   submitted_by BIGINT REFERENCES users(user_id),
   reviewed_by BIGINT REFERENCES users(user_id)
 );
@@ -32,6 +33,7 @@ CREATE TABLE albums (
   release_date DATE,
   album_image_url TEXT,
   status VARCHAR(20) NOT NULL DEFAULT 'approved' CHECK (status IN ('pending','approved','rejected')),
+  added_at DATE,
   submitted_by BIGINT REFERENCES users(user_id),
   reviewed_by BIGINT REFERENCES users(user_id)
 );
@@ -44,6 +46,7 @@ CREATE TABLE tracks (
   explicit BOOLEAN,
   preview_url TEXT,
   status VARCHAR(20) NOT NULL DEFAULT 'approved' CHECK (status IN ('pending','approved','rejected')),
+  added_at DATE,
   submitted_by BIGINT REFERENCES users(user_id),
   reviewed_by BIGINT REFERENCES users(user_id)
 );
