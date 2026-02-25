@@ -22,10 +22,7 @@
       margin:0;
       font-family:var(--sans);
       color:var(--text);
-      background:
-        radial-gradient(1200px 600px at 50% -200px, rgba(0,245,160,.22), transparent 60%),
-        radial-gradient(900px 500px at 90% 0px, rgba(0,194,255,.10), transparent 55%),
-        var(--bg);
+      background: var(--bg);
     }
     .wrap{max-width:1040px;margin:22px auto;padding:0 18px 60px;}
 
@@ -47,9 +44,7 @@
     .logo-badge{
       width:34px;height:34px;border-radius:10px;
       background:linear-gradient(135deg,var(--accent),rgba(0,245,160,.25));
-      display:grid;place-items:center;
-      color:#000;font-weight:900;font-size:18px;line-height:1;
-      flex:0 0 auto;
+      display:grid;place-items:center;color:#000;font-weight:900;
     }
     .brand .name{font-weight:1000;letter-spacing:.2px;font-size:16px;line-height:1.1;}
     .brand .crumb{margin-top:4px;font-family:var(--mono);color:var(--muted);font-size:12px;}
@@ -178,7 +173,7 @@
     <div class="shell">
       <div class="top">
         <div class="brandwrap">
-          <div class="logo-badge"><span style="display:inline-block;transform:translateY(1px);">♪</span></div>
+          <div class="logo-badge">♪</div>
           <div class="brand">
             <div class="name">MusicBox <span style="color:var(--muted);font-weight:900">Admin</span></div>
             <div class="crumb">Welcome back, {{ email or 'User' }}! ({{ role_display }})</div>
@@ -207,7 +202,7 @@
             <div class="icon-wrap" aria-hidden="true">✎</div>
             <h2>Content Management</h2>
             <p class="desc">Add new tracks, update artist/album info, and handle pending reviews.</p>
-            <a href="{{ url_for('analyst_edit') }}" class="btn">Open management</a>
+            <a href="{{ url_for('manage_list', tab='songs') }}" class="btn">Open management</a>
           </div>
         </div>
 

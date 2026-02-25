@@ -48,9 +48,7 @@
     .logo-badge{
       width:34px;height:34px;border-radius:10px;
       background:linear-gradient(135deg,var(--accent),rgba(0,245,160,.25));
-      display:grid;place-items:center;
-      color:#000;font-weight:900;font-size:18px;line-height:1;
-      flex:0 0 auto;
+      display:grid;place-items:center;color:#000;font-weight:900;
     }
     .brand .name{font-weight:1000;letter-spacing:.2px;font-size:16px;line-height:1.1;}
     .brand .crumb{margin-top:4px;font-family:var(--mono);color:var(--muted);font-size:12px;}
@@ -307,20 +305,30 @@
       .linkback{margin-left:16px}
       .content{padding:16px}
     }
+
+    /* Review mode: read-only, no edits */
+    form.review-readonly input:not([type="hidden"]),
+    form.review-readonly select,
+    form.review-readonly .pill-radio,
+    form.review-readonly .pill-radio input{ pointer-events:none; cursor:default; }
+    form.review-readonly a.addnew{ pointer-events:none; opacity:.5; cursor:default; }
   </style>
 </head>
 <body>
   <div class="wrap">
+    {% set review_mode = review_mode or False %}
+    {% set is_admin = is_admin or False %}
+    {% set return_history_open = return_history_open or False %}
     {% set mode = mode or 'track' %}
     {% if mode == 'artist' %}
       {% set crumb_label = 'Artist' %}
-      {% set back_url = url_for('manage_list', tab='artists') %}
+      {% set back_url = url_for('admin', history_open='1') if (review_mode and return_history_open) else (url_for('admin') if review_mode else url_for('manage_list', tab='artists')) %}
     {% elif mode == 'album' %}
       {% set crumb_label = 'Album' %}
-      {% set back_url = url_for('manage_list', tab='albums') %}
+      {% set back_url = url_for('admin', history_open='1') if (review_mode and return_history_open) else (url_for('admin') if review_mode else url_for('manage_list', tab='albums')) %}
     {% else %}
       {% set crumb_label = 'Tracks' %}
-      {% set back_url = url_for('manage_list', tab='songs') %}
+      {% set back_url = url_for('admin', history_open='1') if (review_mode and return_history_open) else (url_for('admin') if review_mode else url_for('manage_list', tab='songs')) %}
     {% endif %}
     {% with messages = get_flashed_messages() %}
     {% if messages %}
@@ -330,23 +338,32 @@
     <div class="shell">
       <div class="top">
         <div class="brandwrap">
-          <div class="logo-badge"><span style="display:inline-block;transform:translateY(1px);">♪</span></div>
+          <div class="logo-badge">♪</div>
           <div class="brand">
             <div class="name">MusicBox <span style="color:var(--muted);font-weight:900">Admin</span></div>
-            <div class="crumb">{{ crumb_label }} • Add / Edit</div>
+            <div class="crumb">
+              {{ crumb_label }}
+              {% if review_mode %}
+                • Review
+              {% else %}
+                • Add / Edit
+              {% endif %}
+            </div>
           </div>
         </div>
+        {% if not review_mode %}
         <button class="btn secondary" type="submit" form="editForm">Save</button>
+        {% endif %}
       </div>
 
       <a class="linkback" href="{{ back_url }}">
         <span class="pill">←</span>
-        <span>Back to list</span>
+        <span>{% if review_mode %}Back to Admin{% else %}Back to list{% endif %}</span>
       </a>
 
       <div class="content">
         {% if mode == 'track' %}
-        <form method="post" action="{{ url_for('analyst_edit') }}" id="editForm">
+        <form method="post" action="{{ url_for('analyst_edit') }}" id="editForm" class="{% if review_mode %}review-readonly{% endif %}"{% if review_mode %} onsubmit="return false"{% endif %}>
           <input type="hidden" name="delete" id="deleteFlag" value="0" />
           {% if track %}
           <input type="hidden" name="track_id" value="{{ track.track_id }}" />
@@ -463,22 +480,54 @@
             </div>
           </div>
 
-          <!-- Footer Actions (与 track_add_edit_mockup_dark_v2.html 一致) -->
+          <!-- Footer Actions -->
           <div class="footer">
-            <a class="btn secondary" href="{{ back_url }}">Cancel</a>
+            <a class="btn secondary" href="{{ back_url }}">Back</a>
+            {% if not review_mode %}
             <button class="btn" type="submit">Save</button>
             <button class="btn danger" type="button">Delete</button>
+            {% endif %}
           </div>
         </form>
 
+        {% if review_mode and is_admin and track %}
+        <div class="footer">
+          <form method="post" action="{{ url_for('admin_review') }}" style="display:inline;">
+            <input type="hidden" name="type" value="track" />
+            <input type="hidden" name="id" value="{{ track.track_id }}" />
+            <input type="hidden" name="action" value="reject" />
+            <button class="btn danger" type="submit">Reject</button>
+          </form>
+          <form method="post" action="{{ url_for('admin_review') }}" style="display:inline;margin-left:8px;">
+            <input type="hidden" name="type" value="track" />
+            <input type="hidden" name="id" value="{{ track.track_id }}" />
+            <input type="hidden" name="action" value="changes" />
+            <button class="btn secondary" type="submit">Request Changes</button>
+          </form>
+          <form method="post" action="{{ url_for('admin_review') }}" style="display:inline;margin-left:8px;">
+            <input type="hidden" name="type" value="track" />
+            <input type="hidden" name="id" value="{{ track.track_id }}" />
+            <input type="hidden" name="action" value="approve" />
+            <button class="btn" type="submit">Approve</button>
+          </form>
+        </div>
+        {% endif %}
+
         {% elif mode == 'artist' %}
-        <form method="post" action="{{ url_for('analyst_edit_artist') }}" id="editForm">
+        <form method="post" action="{{ url_for('analyst_edit_artist') }}" id="editForm" class="{% if review_mode %}review-readonly{% endif %}"{% if review_mode %} onsubmit="return false"{% endif %}>
           <input type="hidden" name="delete" id="deleteFlag" value="0" />
           <input type="hidden" name="artist_id" value="{{ artist.artist_id if artist else '' }}" />
 
           <div class="section">
             <h3>Artist Info</h3>
             <div class="grid">
+              {% if artist %}
+              <div class="status-row">
+                <span class="status-label">Status</span>
+                {% set st = (artist.status or 'pending')|lower %}
+                <span class="status-pill {{ st }}">{{ st|capitalize }}</span>
+              </div>
+              {% endif %}
               <label for="artist_name">Artist Name</label>
               <input id="artist_name" name="artist_name" type="text" placeholder="e.g., Taylor Swift" value="{{ artist.artist_name if artist else '' }}" />
             </div>
@@ -527,20 +576,52 @@
           </div>
 
           <div class="footer">
-            <a class="btn secondary" href="{{ back_url }}">Cancel</a>
+            <a class="btn secondary" href="{{ back_url }}">Back</a>
+            {% if not review_mode %}
             <button class="btn" type="submit">Save</button>
             <button class="btn danger" type="button">Delete</button>
+            {% endif %}
           </div>
         </form>
 
+        {% if review_mode and is_admin and artist %}
+        <div class="footer">
+          <form method="post" action="{{ url_for('admin_review') }}" style="display:inline;">
+            <input type="hidden" name="type" value="artist" />
+            <input type="hidden" name="id" value="{{ artist.artist_id }}" />
+            <input type="hidden" name="action" value="reject" />
+            <button class="btn danger" type="submit">Reject</button>
+          </form>
+          <form method="post" action="{{ url_for('admin_review') }}" style="display:inline;margin-left:8px;">
+            <input type="hidden" name="type" value="artist" />
+            <input type="hidden" name="id" value="{{ artist.artist_id }}" />
+            <input type="hidden" name="action" value="changes" />
+            <button class="btn secondary" type="submit">Request Changes</button>
+          </form>
+          <form method="post" action="{{ url_for('admin_review') }}" style="display:inline;margin-left:8px;">
+            <input type="hidden" name="type" value="artist" />
+            <input type="hidden" name="id" value="{{ artist.artist_id }}" />
+            <input type="hidden" name="action" value="approve" />
+            <button class="btn" type="submit">Approve</button>
+          </form>
+        </div>
+        {% endif %}
+
         {% elif mode == 'album' %}
-        <form method="post" action="{{ url_for('analyst_edit_album') }}" id="editForm">
+        <form method="post" action="{{ url_for('analyst_edit_album') }}" id="editForm" class="{% if review_mode %}review-readonly{% endif %}"{% if review_mode %} onsubmit="return false"{% endif %}>
           <input type="hidden" name="delete" id="deleteFlag" value="0" />
           <input type="hidden" name="album_id" value="{{ album.album_id if album else '' }}" />
 
           <div class="section">
             <h3>Album Info</h3>
             <div class="grid">
+              {% if album %}
+              <div class="status-row">
+                <span class="status-label">Status</span>
+                {% set st = (album.status or 'pending')|lower %}
+                <span class="status-pill {{ st }}">{{ st|capitalize }}</span>
+              </div>
+              {% endif %}
               <label for="album_name">Album Name</label>
               <input id="album_name" name="album_name" type="text" placeholder="e.g., Midnights" value="{{ album.album_name if album else '' }}" />
 
@@ -600,11 +681,36 @@
           </div>
 
           <div class="footer">
-            <a class="btn secondary" href="{{ back_url }}">Cancel</a>
+            <a class="btn secondary" href="{{ back_url }}">Back</a>
+            {% if not review_mode %}
             <button class="btn" type="submit">Save</button>
             <button class="btn danger" type="button">Delete</button>
+            {% endif %}
           </div>
         </form>
+
+        {% if review_mode and is_admin and album %}
+        <div class="footer">
+          <form method="post" action="{{ url_for('admin_review') }}" style="display:inline;">
+            <input type="hidden" name="type" value="album" />
+            <input type="hidden" name="id" value="{{ album.album_id }}" />
+            <input type="hidden" name="action" value="reject" />
+            <button class="btn danger" type="submit">Reject</button>
+          </form>
+          <form method="post" action="{{ url_for('admin_review') }}" style="display:inline;margin-left:8px;">
+            <input type="hidden" name="type" value="album" />
+            <input type="hidden" name="id" value="{{ album.album_id }}" />
+            <input type="hidden" name="action" value="changes" />
+            <button class="btn secondary" type="submit">Request Changes</button>
+          </form>
+          <form method="post" action="{{ url_for('admin_review') }}" style="display:inline;margin-left:8px;">
+            <input type="hidden" name="type" value="album" />
+            <input type="hidden" name="id" value="{{ album.album_id }}" />
+            <input type="hidden" name="action" value="approve" />
+            <button class="btn" type="submit">Approve</button>
+          </form>
+        </div>
+        {% endif %}
         {% endif %}
       </div>
     </div>

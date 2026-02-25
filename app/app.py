@@ -1683,85 +1683,294 @@ def _admin_users(cur):
     ]
 
 
-def _admin_pending(cur):
+def _admin_pending(cur, q=None):
     out = []
+    params = ("%" + q + "%",) if q else ()
     cur.execute("""
         SELECT t.track_id, t.track_name, t.submitted_by, u.email
         FROM tracks t
         LEFT JOIN users u ON u.user_id = t.submitted_by
         WHERE t.status = 'pending'
+        """ + (" AND t.track_name ILIKE %s" if q else "") + """
         ORDER BY t.track_id
-    """)
+    """, params)
     for r in cur.fetchall():
         out.append({
             "type": "track",
             "id": r[0],
-            "title": "Track: " + (r[1] or ""),
+            "title": (r[1] or ""),
             "submitted_by": r[3] or "—",
+            "reviewed_by": "—",
+            "processed_at": "—",
         })
     cur.execute("""
         SELECT a.album_id, a.album_name, a.submitted_by, u.email
         FROM albums a
         LEFT JOIN users u ON u.user_id = a.submitted_by
         WHERE a.status = 'pending'
+        """ + (" AND a.album_name ILIKE %s" if q else "") + """
         ORDER BY a.album_id
-    """)
+    """, params)
     for r in cur.fetchall():
         out.append({
             "type": "album",
             "id": r[0],
-            "title": "Album: " + (r[1] or ""),
+            "title": (r[1] or ""),
             "submitted_by": r[3] or "—",
+            "reviewed_by": "—",
+            "processed_at": "—",
         })
     cur.execute("""
         SELECT a.artist_id, a.artist_name, a.submitted_by, u.email
         FROM artists a
         LEFT JOIN users u ON u.user_id = a.submitted_by
         WHERE a.status = 'pending'
+        """ + (" AND a.artist_name ILIKE %s" if q else "") + """
         ORDER BY a.artist_id
-    """)
+    """, params)
     for r in cur.fetchall():
         out.append({
             "type": "artist",
             "id": r[0],
-            "title": "Artist: " + (r[1] or ""),
+            "title": (r[1] or ""),
             "submitted_by": r[3] or "—",
+            "reviewed_by": "—",
+            "processed_at": "—",
         })
     return out
+
+
+def _admin_history(cur, q=None):
+    out = []
+    search_param = ("%" + q + "%",) if q else ()
+    # Prefer query with reviewed_at / reviewed_by; fallback if column missing (e.g. migration not run)
+    def fetch_tracks():
+        cur.execute(
+            """
+            SELECT t.track_id, t.track_name, t.status, t.submitted_by, u.email,
+                   t.reviewed_by, ru.email AS reviewer_email, t.reviewed_at
+            FROM tracks t
+            LEFT JOIN users u ON u.user_id = t.submitted_by
+            LEFT JOIN users ru ON ru.user_id = t.reviewed_by
+            WHERE t.status IN ('approved','rejected')
+            """ + (" AND t.track_name ILIKE %s" if q else "") + """
+            ORDER BY t.reviewed_at DESC NULLS LAST, t.track_id
+            """,
+            search_param,
+        )
+        for r in cur.fetchall():
+            out.append({
+                "type": "track", "id": r[0], "title": (r[1] or ""),
+                "status": r[2] or "pending", "submitted_by": r[4] or "—",
+                "reviewed_by": r[6] or "—", "processed_at": _format_reviewed_at(r[7]),
+            })
+
+    def fetch_tracks_fallback():
+        cur.execute(
+            """
+            SELECT t.track_id, t.track_name, t.status, t.submitted_by, u.email
+            FROM tracks t
+            LEFT JOIN users u ON u.user_id = t.submitted_by
+            WHERE t.status IN ('approved','rejected')
+            """ + (" AND t.track_name ILIKE %s" if q else "") + """
+            ORDER BY t.added_at DESC NULLS LAST, t.track_id
+            """,
+            search_param,
+        )
+        for r in cur.fetchall():
+            out.append({
+                "type": "track", "id": r[0], "title": (r[1] or ""),
+                "status": r[2] or "pending", "submitted_by": r[4] or "—",
+                "reviewed_by": "—", "processed_at": "—",
+            })
+
+    def fetch_albums():
+        cur.execute(
+            """
+            SELECT a.album_id, a.album_name, a.status, a.submitted_by, u.email,
+                   a.reviewed_by, ru.email AS reviewer_email, a.reviewed_at
+            FROM albums a
+            LEFT JOIN users u ON u.user_id = a.submitted_by
+            LEFT JOIN users ru ON ru.user_id = a.reviewed_by
+            WHERE a.status IN ('approved','rejected')
+            """ + (" AND a.album_name ILIKE %s" if q else "") + """
+            ORDER BY a.reviewed_at DESC NULLS LAST, a.album_id
+            """,
+            search_param,
+        )
+        for r in cur.fetchall():
+            out.append({
+                "type": "album", "id": r[0], "title": (r[1] or ""),
+                "status": r[2] or "pending", "submitted_by": r[4] or "—",
+                "reviewed_by": r[6] or "—", "processed_at": _format_reviewed_at(r[7]),
+            })
+
+    def fetch_albums_fallback():
+        cur.execute(
+            """
+            SELECT a.album_id, a.album_name, a.status, a.submitted_by, u.email
+            FROM albums a
+            LEFT JOIN users u ON u.user_id = a.submitted_by
+            WHERE a.status IN ('approved','rejected')
+            """ + (" AND a.album_name ILIKE %s" if q else "") + """
+            ORDER BY a.added_at DESC NULLS LAST, a.album_id
+            """,
+            search_param,
+        )
+        for r in cur.fetchall():
+            out.append({
+                "type": "album", "id": r[0], "title": (r[1] or ""),
+                "status": r[2] or "pending", "submitted_by": r[4] or "—",
+                "reviewed_by": "—", "processed_at": "—",
+            })
+
+    def fetch_artists():
+        cur.execute(
+            """
+            SELECT a.artist_id, a.artist_name, a.status, a.submitted_by, u.email,
+                   a.reviewed_by, ru.email AS reviewer_email, a.reviewed_at
+            FROM artists a
+            LEFT JOIN users u ON u.user_id = a.submitted_by
+            LEFT JOIN users ru ON ru.user_id = a.reviewed_by
+            WHERE a.status IN ('approved','rejected')
+            """ + (" AND a.artist_name ILIKE %s" if q else "") + """
+            ORDER BY a.reviewed_at DESC NULLS LAST, a.artist_id
+            """,
+            search_param,
+        )
+        for r in cur.fetchall():
+            out.append({
+                "type": "artist", "id": r[0], "title": (r[1] or ""),
+                "status": r[2] or "pending", "submitted_by": r[4] or "—",
+                "reviewed_by": r[6] or "—", "processed_at": _format_reviewed_at(r[7]),
+            })
+
+    def fetch_artists_fallback():
+        cur.execute(
+            """
+            SELECT a.artist_id, a.artist_name, a.status, a.submitted_by, u.email
+            FROM artists a
+            LEFT JOIN users u ON u.user_id = a.submitted_by
+            WHERE a.status IN ('approved','rejected')
+            """ + (" AND a.artist_name ILIKE %s" if q else "") + """
+            ORDER BY a.added_at DESC NULLS LAST, a.artist_id
+            """,
+            search_param,
+        )
+        for r in cur.fetchall():
+            out.append({
+                "type": "artist", "id": r[0], "title": (r[1] or ""),
+                "status": r[2] or "pending", "submitted_by": r[4] or "—",
+                "reviewed_by": "—", "processed_at": "—",
+            })
+
+    try:
+        fetch_tracks()
+        fetch_albums()
+        fetch_artists()
+    except Exception:
+        cur.connection.rollback()
+        out.clear()
+        fetch_tracks_fallback()
+        fetch_albums_fallback()
+        fetch_artists_fallback()
+    return out
+
+
+def _format_reviewed_at(ts):
+    if ts is None:
+        return "—"
+    if hasattr(ts, "strftime"):
+        return ts.strftime("%Y-%m-%d %H:%M")
+    return str(ts)[:16] if len(str(ts)) >= 16 else str(ts)
 
 
 @app.route("/admin", methods=["GET"])
 def admin():
     users = []
     pending = []
+    history = []
+    q_pending = (request.args.get("q_pending") or "").strip()
+    q_history = (request.args.get("q_history") or "").strip()
+    try:
+        page_pending = max(1, int(request.args.get("page_pending", "1")))
+    except ValueError:
+        page_pending = 1
+    try:
+        page_history = max(1, int(request.args.get("page_history", "1")))
+    except ValueError:
+        page_history = 1
+    page_size = 20
+    show_history = request.args.get("history_open") == "1"
     with get_conn() as conn:
         with conn.cursor() as cur:
             users = _admin_users(cur)
-            pending = _admin_pending(cur)
+            full_pending = _admin_pending(cur, q=q_pending)
+            full_history = _admin_history(cur, q=q_history)
+    total_pending = len(full_pending)
+    total_history = len(full_history)
+    pending = full_pending[(page_pending - 1) * page_size : page_pending * page_size]
+    history = full_history[(page_history - 1) * page_size : page_history * page_size]
     return render_template(
         "admin_panel.html",
         users=users,
         pending=pending,
+        history=history,
+        total_pending=total_pending,
+        total_history=total_history,
+        page_pending=page_pending,
+        page_history=page_history,
+        page_size=page_size,
+        q_pending=q_pending,
+        q_history=q_history,
+        show_history=show_history,
     )
 
 
 @app.route("/admin/user/update", methods=["POST"])
 def admin_user_update():
     user_id = request.form.get("user_id", "").strip()
+    email = (request.form.get("email") or "").strip()
     role = request.form.get("role", "").strip()
     is_active = request.form.get("is_active", "").strip()
-    if not user_id or role not in ("admin", "analyst"):
-        flash("Invalid user or role.")
+    if not user_id or not email or "@" not in email or role not in ("admin", "analyst"):
+        flash("Invalid user or role or email.")
         return redirect(url_for("admin"))
     active = is_active.lower() in ("1", "true", "active", "on")
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE users SET role = %s, is_active = %s WHERE user_id = %s",
-                (role, active, int(user_id)),
+                "UPDATE users SET email = %s, role = %s, is_active = %s WHERE user_id = %s",
+                (email, role, active, int(user_id)),
             )
             conn.commit()
     flash("User updated.")
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/user/create", methods=["POST"])
+def admin_user_create():
+    email = (request.form.get("email") or "").strip()
+    role = request.form.get("role", "").strip()
+    is_active = request.form.get("is_active", "").strip()
+    if not email or "@" not in email or role not in ("admin", "analyst"):
+        flash("Invalid email or role.")
+        return redirect(url_for("admin"))
+    active = is_active.lower() in ("1", "true", "active", "on")
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO users (email, password_hash, role, is_active) VALUES (%s, NULL, %s, %s)",
+                    (email, role, active),
+                )
+                conn.commit()
+        flash("User created.")
+    except Exception as e:
+        if "unique" in str(e).lower() or "duplicate" in str(e).lower():
+            flash("A user with this email already exists.")
+        else:
+            flash("Could not create user.")
     return redirect(url_for("admin"))
 
 
@@ -1770,20 +1979,44 @@ def admin_review():
     action = request.form.get("action", "").strip()
     item_type = request.form.get("type", "").strip()
     item_id = request.form.get("id", "").strip()
-    if action not in ("approve", "reject") or item_type not in ("track", "album", "artist"):
+    if action not in ("approve", "reject", "changes", "revert") or item_type not in ("track", "album", "artist"):
         flash("Invalid action or type.")
         return redirect(url_for("admin"))
     table = {"track": "tracks", "album": "albums", "artist": "artists"}[item_type]
     pk = {"track": "track_id", "album": "album_id", "artist": "artist_id"}[item_type]
-    status = "approved" if action == "approve" else "rejected"
+    reviewer = session.get("admin_user_id")
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                f"UPDATE {table} SET status = %s, reviewed_by = NULL WHERE {pk} = %s",
-                (status, item_id),
-            )
-            conn.commit()
-    flash(f"Item {action}d.")
+            if action == "revert":
+                try:
+                    cur.execute(
+                        f"UPDATE {table} SET status = 'pending', reviewed_by = NULL, reviewed_at = NULL WHERE {pk} = %s",
+                        (item_id,),
+                    )
+                except Exception:
+                    cur.execute(
+                        f"UPDATE {table} SET status = 'pending', reviewed_by = NULL WHERE {pk} = %s",
+                        (item_id,),
+                    )
+                conn.commit()
+                flash("Reverted to pending.")
+            else:
+                status = "approved" if action == "approve" else "rejected"
+                try:
+                    cur.execute(
+                        f"UPDATE {table} SET status = %s, reviewed_by = %s, reviewed_at = CURRENT_TIMESTAMP WHERE {pk} = %s",
+                        (status, reviewer, item_id),
+                    )
+                except Exception:
+                    cur.execute(
+                        f"UPDATE {table} SET status = %s, reviewed_by = %s WHERE {pk} = %s",
+                        (status, reviewer, item_id),
+                    )
+                conn.commit()
+                if action == "changes":
+                    flash("Changes requested.")
+                else:
+                    flash(f"Item {action}d.")
     return redirect(url_for("admin"))
 
 
@@ -1979,6 +2212,9 @@ def analyst_edit_search_albums():
 
 @app.route("/analyst/edit/artist", methods=["GET", "POST"])
 def analyst_edit_artist():
+    is_admin = (session.get("admin_role") or "").lower() == "admin"
+    review_mode = request.method == "GET" and request.args.get("review") == "1"
+    return_history_open = request.args.get("history_open") == "1"
     artist_id = request.args.get("artist_id", "").strip() if request.method == "GET" else request.form.get("artist_id", "").strip()
 
     if request.method == "POST":
@@ -2075,11 +2311,17 @@ def analyst_edit_artist():
         artist_genres=artist_genres,
         artist_albums=artist_albums,
         big7=BIG7,
+        review_mode=review_mode,
+        is_admin=is_admin,
+        return_history_open=return_history_open,
     )
 
 
 @app.route("/analyst/edit/album", methods=["GET", "POST"])
 def analyst_edit_album():
+    is_admin = (session.get("admin_role") or "").lower() == "admin"
+    review_mode = request.method == "GET" and request.args.get("review") == "1"
+    return_history_open = request.args.get("history_open") == "1"
     album_id = request.args.get("album_id", "").strip() if request.method == "GET" else request.form.get("album_id", "").strip()
 
     if request.method == "POST":
@@ -2146,7 +2388,7 @@ def analyst_edit_album():
         with get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT album_id, album_name, release_date, album_image_url FROM albums WHERE album_id = %s",
+                    "SELECT album_id, album_name, release_date, album_image_url, status FROM albums WHERE album_id = %s",
                     (album_id,),
                 )
                 row = cur.fetchone()
@@ -2156,6 +2398,7 @@ def analyst_edit_album():
                         "album_name": row[1],
                         "release_date": str(row[2]) if row[2] else "",
                         "album_image_url": row[3],
+                        "status": row[4],
                     }
                     cur.execute(
                         """
@@ -2218,10 +2461,16 @@ def analyst_edit_album():
         album_tracks=album_tracks,
         main_artist=main_artist,
         big7=BIG7,
+        review_mode=review_mode,
+        is_admin=is_admin,
+        return_history_open=return_history_open,
     )
 
 @app.route("/analyst/edit", methods=["GET", "POST"])
 def analyst_edit():
+    is_admin = (session.get("admin_role") or "").lower() == "admin"
+    review_mode = request.method == "GET" and request.args.get("review") == "1"
+    return_history_open = request.args.get("history_open") == "1"
     track_id = request.args.get("track_id", "").strip() if request.method == "GET" else request.form.get("track_id", "").strip()
 
     # POST: save or delete
@@ -2401,7 +2650,7 @@ def analyst_edit():
                         "genre_names": genre_names,
                     }
 
-    return render_template("analyst_edit.html", track=track, big7=BIG7)
+    return render_template("analyst_edit.html", track=track, big7=BIG7, review_mode=review_mode, is_admin=is_admin, return_history_open=return_history_open)
 
 
 if __name__ == "__main__":

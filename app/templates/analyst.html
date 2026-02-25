@@ -89,6 +89,25 @@
       color: var(--text);
     }
 
+    .back-link{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      margin:14px 0 0 2px;
+      color:var(--muted);
+      font-family:var(--mono);
+      font-size:13px;
+      text-decoration:none;
+    }
+    .back-link:hover{color:var(--text);}
+    .back-link-pill{
+      width:38px;height:38px;border-radius:14px;
+      display:grid;place-items:center;
+      background:rgba(0,245,160,.10);
+      border:1px solid rgba(0,245,160,.35);
+      color:var(--accent);
+    }
+
     /* compact selector */
     .select-wrap{
       display:flex;align-items:center;gap:8px;
@@ -248,6 +267,11 @@
         <input placeholder="Search songs, artists, albums..." />
       </div>
     </div>
+
+    <a class="back-link" href="{{ url_for('admin_gateway') }}">
+      <span class="back-link-pill">←</span>
+      <span>Back to gateway</span>
+    </a>
 
     <!-- STYLE MAP -->
     <div class="section">

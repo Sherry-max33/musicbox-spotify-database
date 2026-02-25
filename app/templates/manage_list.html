@@ -49,9 +49,7 @@
     .logo-badge{
       width:34px;height:34px;border-radius:10px;
       background:linear-gradient(135deg,var(--accent),rgba(0,245,160,.25));
-      display:grid;place-items:center;
-      color:#000;font-weight:900;font-size:18px;line-height:1;
-      flex:0 0 auto;
+      display:grid;place-items:center;color:#000;font-weight:900;
     }
     .brand .name{font-weight:1000;letter-spacing:.2px;font-size:16px;line-height:1.1;}
     .brand .crumb{margin-top:4px;font-family:var(--mono);color:var(--muted);font-size:12px;}
@@ -67,6 +65,25 @@
       white-space:nowrap;
       overflow:hidden;
       text-overflow:ellipsis;
+    }
+
+    .linkback{
+      display:inline-flex;align-items:center;gap:10px;
+      margin:14px 0 0 20px;
+      color:var(--muted);
+      font-family:var(--mono);
+      font-size:13px;
+      text-decoration:none;
+      width:fit-content;
+    }
+    .linkback:hover{color:var(--text)}
+    .linkback .pill{
+      width:38px;height:38px;border-radius:14px;
+      display:grid;place-items:center;
+      background:rgba(0,245,160,.10);
+      border:1px solid rgba(0,245,160,.35);
+      color:var(--accent);
+      font-weight:1000;
     }
 
     .tabs{
@@ -279,7 +296,7 @@
     <div class="shell">
       <div class="top">
         <div class="brandwrap">
-          <div class="logo-badge"><span style="display:inline-block;transform:translateY(1px);">♪</span></div>
+          <div class="logo-badge">♪</div>
           <div class="brand">
             <div class="name">MusicBox <span style="color:var(--muted);font-weight:900">Admin</span></div>
             <div class="crumb">Manage List</div>
@@ -290,18 +307,26 @@
         </div>
       </div>
 
+      <a class="linkback" href="{{ url_for('admin_gateway') }}">
+        <span class="pill">←</span>
+        <span>Back to gateway</span>
+      </a>
+
       <div class="tabs">
         <a href="{{ url_for('manage_list', tab='songs', status=status, mine=1 if mine else 0, q=q, decade=decade, genre=genre, page=1) }}" class="tab {% if tab == 'songs' %}active{% endif %}">Songs</a>
         <a href="{{ url_for('manage_list', tab='artists', status=status, mine=1 if mine else 0, q=q, decade=decade, genre=genre, page=1) }}" class="tab {% if tab == 'artists' %}active{% endif %}">Artists</a>
         <a href="{{ url_for('manage_list', tab='albums', status=status, mine=1 if mine else 0, q=q, decade=decade, genre=genre, page=1) }}" class="tab {% if tab == 'albums' %}active{% endif %}">Albums</a>
         {% if tab == 'songs' %}
         {% set add_label = '+ Add Song' %}
+        {% set add_url = url_for('analyst_edit') %}
         {% elif tab == 'artists' %}
         {% set add_label = '+ Add Artist' %}
+        {% set add_url = url_for('analyst_edit_artist') %}
         {% else %}
         {% set add_label = '+ Add Album' %}
+        {% set add_url = url_for('analyst_edit_album') %}
         {% endif %}
-        <a href="{{ url_for('analyst') }}" class="btn tabs-add">{{ add_label }}</a>
+        <a href="{{ add_url }}" class="btn tabs-add" target="_blank" rel="noreferrer">{{ add_label }}</a>
       </div>
 
       <div class="content">

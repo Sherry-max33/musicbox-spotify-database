@@ -27,11 +27,7 @@
     *{ box-sizing:border-box; }
     body{
       margin:0;
-      background:
-        radial-gradient(1000px 360px at 20% 0%, rgba(24,243,163,.18), transparent 55%),
-        radial-gradient(800px 300px at 90% 10%, rgba(24,243,163,.10), transparent 60%),
-        radial-gradient(900px 500px at 50% 120%, rgba(255,255,255,.05), transparent 60%),
-        var(--bg);
+      background: var(--bg);
       color:var(--text);
       font-family:var(--sans);
     }
@@ -48,30 +44,38 @@
       background:linear-gradient(180deg, rgba(30,30,30,.70), rgba(18,18,18,.55));
       border:1px solid var(--stroke);
       box-shadow:var(--shadow);
-      backdrop-filter: blur(10px);
     }
 
     .logo{
       display:flex;
       align-items:center;
       gap:10px;
-      min-width:220px;
+      min-width:160px;
       font-weight:800;
+      letter-spacing:.4px;
     }
 
     .logo-badge{
       width:34px;height:34px;border-radius:10px;
-      background:linear-gradient(135deg,var(--accent),rgba(24,243,163,.25));
+      background:linear-gradient(135deg,var(--accent),rgba(0,245,160,.25));
       display:grid;place-items:center;color:#000;font-weight:900;
     }
 
     .brand{
       display:flex;
       flex-direction:column;
-      line-height:1.05;
+      line-height:1.1;
     }
-    .brand .name{ font-weight:800; letter-spacing:.2px; font-size:20px; }
-    .brand .sub{ font-family:var(--mono); color:var(--muted2); font-size:12px; }
+    .brand .name{
+      font-weight:1000;
+      letter-spacing:.2px;
+      font-size:16px;
+    }
+    .brand .sub{
+      font-family:var(--mono);
+      color:var(--muted);
+      font-size:12px;
+    }
 
     .spacer{ flex:1; }
 
@@ -89,7 +93,7 @@
       text-transform:uppercase;
       font-size:12px;
     }
-    .pill b{ color:var(--text); letter-spacing:0; text-transform:none; font-family:var(--sans); font-size:13px; }
+    .pill b{ color:var(--text); letter-spacing:.08em; text-transform:uppercase; font-family:var(--mono); font-size:12px; font-weight:700; }
 
     /* Sections */
     .section{
@@ -99,7 +103,6 @@
       background:linear-gradient(180deg, rgba(22,22,22,.75), rgba(14,14,14,.60));
       box-shadow:var(--shadow);
       overflow:hidden;
-      backdrop-filter: blur(10px);
     }
 
     .sectionHeader{
@@ -120,6 +123,20 @@
     }
 
     .cardBody{ padding:18px 18px 22px; }
+
+    .reviewSubtitle{
+      font-family:var(--mono);
+      font-size:14px;
+      font-weight:700;
+      letter-spacing:.1em;
+      text-transform:uppercase;
+      color:var(--text);
+      margin-bottom:12px;
+      padding-bottom:8px;
+      border-bottom:1px solid rgba(0,245,160,.35);
+    }
+
+    #historyBody{ margin-top:4px; }
 
     /* Table-like form */
     .gridHeader, .row{
@@ -147,6 +164,16 @@
       border:1px solid rgba(255,255,255,.06);
       background:rgba(10,10,10,.35);
       margin-top:10px;
+    }
+
+    #newUserRow{
+      grid-template-columns: 1.4fr 220px 200px minmax(200px, 1fr);
+    }
+    #newUserRow > div:last-child{
+      display:flex;
+      gap:8px;
+      justify-content:flex-end;
+      flex-wrap:wrap;
     }
 
     .input{
@@ -190,19 +217,36 @@
       border:1px solid rgba(24,243,163,.40);
       background:rgba(24,243,163,.10);
       color:var(--accent);
+      font-family:var(--sans);
+      font-size:13px;
       font-weight:800;
       letter-spacing:.04em;
       cursor:pointer;
       user-select:none;
       min-width:92px;
-      font-family:var(--sans);
     }
 
     /* Content Review */
+    .reviewRow > div:first-child{
+      text-transform: none;
+    }
+    .reviewRow .openLink{
+      text-transform: none;
+    }
+    .searchRow{
+      background:#0e0e0e;
+      border-radius:14px;
+      padding:10px 12px;
+      margin-bottom:12px;
+      display:inline-flex;
+      flex-wrap:wrap;
+      align-items:center;
+      gap:8px;
+    }
     .reviewGridHeader, .reviewRow{
       display:grid;
-      grid-template-columns: 1.6fr 140px 110px 120px 90px;
-      gap:12px;
+      grid-template-columns: 1.5fr 120px 120px 90px 90px 130px minmax(160px,1fr);
+      gap:10px;
       align-items:center;
       font-family:var(--mono);
     }
@@ -220,10 +264,12 @@
 
     .reviewRow{
       padding:12px 14px;
-      border-radius:18px;
-      border:1px solid rgba(255,255,255,.06);
-      background:rgba(10,10,10,.35);
-      margin-top:10px;
+      border-radius:12px;
+      background:rgba(255,255,255,.02);
+      margin-top:8px;
+    }
+    .reviewRow > div:first-child{
+      font-size:13px;
     }
 
     .tag{
@@ -239,6 +285,8 @@
     }
 
     .tag.new{ border-color: rgba(24,243,163,.35); color: rgba(24,243,163,.95); background: rgba(24,243,163,.08); }
+    .tag.approved{ border-color: rgba(0,245,160,.35); color: rgba(0,245,160,.95); background: rgba(0,245,160,.12); }
+    .tag.rejected{ border-color: rgba(255,99,132,.35); color: #ff6384; background: rgba(255,99,132,.12); }
     .tag.update{ border-color: rgba(130,197,255,.30); color: rgba(130,197,255,.95); background: rgba(130,197,255,.08); }
     .tag.analyst{ border-color: rgba(255,214,90,.35); color: rgba(255,214,90,.95); background: rgba(255,214,90,.08); }
 
@@ -255,7 +303,7 @@
       font-size:12px;
       letter-spacing:.08em;
       text-transform:uppercase;
-      cursor:default;
+      cursor:pointer;
       user-select:none;
     }
 
@@ -316,6 +364,10 @@
       border-color: rgba(255,255,255,.16);
       background: rgba(255,255,255,.06);
       color: var(--text);
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .04em;
     }
 
     .btnDanger{
@@ -329,6 +381,8 @@
       background: rgba(24,243,163,.12);
       color: var(--accent);
     }
+
+    .input.searchSmall{ width:140px; max-width:160px; padding:8px 10px; font-size:13px; }
 
     @media (max-width: 980px){
       .gridHeader, .row{ grid-template-columns: 1fr; }
@@ -344,15 +398,15 @@
   <div class="wrap">
     {% with messages = get_flashed_messages() %}
     {% if messages %}
-    <div style="margin-bottom:12px;padding:12px;border-radius:14px;background:rgba(24,243,163,.12);border:1px solid rgba(24,243,163,.4);">{{ messages[0] }}</div>
+    <div style="margin-bottom:12px;padding:12px;border-radius:14px;background:rgba(24,243,163,.12);border:1px solid rgba(24,243,163,.4);font-family:var(--mono);font-size:13px;letter-spacing:.02em;">{{ messages[0] }}</div>
     {% endif %}
     {% endwith %}
     <div class="topbar">
       <div class="logo">
         <div class="logo-badge">♪</div>
         <div class="brand">
-          <div class="name">MusicBox</div>
-          <div class="sub">Discover your sound.</div>
+          <div class="name">MusicBox <span style="color:var(--muted);font-weight:900">Admin</span></div>
+          <div class="sub">Admin Console</div>
         </div>
       </div>
       <div class="spacer"></div>
@@ -360,12 +414,13 @@
       <div class="pill"><span>ROLE</span> <b>ADMIN</b></div>
     </div>
 
-    <!-- USER MANAGEMENT -->
+    <!-- User Management -->
     <section class="section" aria-label="User Management">
       <div class="sectionHeader">
         <div class="titleWrap">
-          <div class="title">USER MANAGEMENT</div>
+          <div class="title">User Management</div>
         </div>
+        <button type="button" class="btn" id="btnCreateUser">+ Create New User</button>
       </div>
 
       <div class="cardBody">
@@ -376,10 +431,26 @@
           <div style="text-align:right;">Action</div>
         </div>
 
+        <form method="post" action="{{ url_for('admin_user_create') }}" class="row" id="newUserRow" style="display:none;">
+          <input class="input" name="email" placeholder="email@example.com" required />
+          <select class="select" name="role">
+            <option value="analyst" selected>Analyst</option>
+            <option value="admin">Admin</option>
+          </select>
+          <select class="select" name="is_active">
+            <option value="1" selected>Active</option>
+            <option value="0">Disabled</option>
+          </select>
+          <div style="text-align:right;">
+            <button type="button" class="btn secondary" id="btnCancelNewUser">Cancel</button>
+            <button type="submit" class="btn">Create</button>
+          </div>
+        </form>
+
         {% for u in users %}
         <form method="post" action="{{ url_for('admin_user_update') }}" class="row">
           <input type="hidden" name="user_id" value="{{ u.user_id }}" />
-          <input class="input" name="email" value="{{ u.email }}" readonly style="opacity:.9;" />
+          <input class="input" name="email" value="{{ u.email }}" style="opacity:.9;" />
           <select class="select" name="role">
             <option value="admin"{% if u.role == 'admin' %} selected{% endif %}>Admin</option>
             <option value="analyst"{% if u.role == 'analyst' %} selected{% endif %}>Analyst</option>
@@ -396,20 +467,32 @@
       </div>
     </section>
 
-    <!-- CONTENT REVIEW -->
-    <section class="section" aria-label="Content Review">
+    <!-- Content Review (To-do Queue + Review History) -->
+    <section class="section" id="contentReview" aria-label="Content Review">
       <div class="sectionHeader">
         <div class="titleWrap">
-          <div class="title">CONTENT REVIEW</div>
+          <div class="title">Content Review</div>
         </div>
+        <button type="button" class="btn secondary" id="btnToggleHistory">{% if show_history %}Hide Past Decisions{% else %}View Past Decisions{% endif %}</button>
       </div>
 
       <div class="cardBody">
+        <div class="reviewSubtitle">To-do Queue</div>
+        <form method="get" action="{{ url_for('admin') }}" class="searchRow">
+          <input type="hidden" name="q_history" value="{{ q_history }}" />
+          <input type="hidden" name="page_history" value="{{ page_history }}" />
+          <input type="hidden" name="history_open" id="historyOpenPending" value="{{ '1' if show_history else '' }}" />
+          <input class="input searchSmall" name="q_pending" value="{{ q_pending }}" placeholder="Item" autocomplete="off" />
+          <button type="submit" class="btn">Search</button>
+          <a href="{{ url_for('admin', q_pending='', q_history=q_history or '', page_pending=1, page_history=page_history, history_open='1' if show_history else '') }}" class="btn btnNeutral" style="text-decoration:none;">Clear</a>
+        </form>
         <div class="reviewGridHeader">
           <div>Item</div>
           <div>Submitted by</div>
+          <div>Reviewed by</div>
           <div>Type</div>
           <div>Status</div>
+          <div>Processed at</div>
           <div style="text-align:right;">Action</div>
         </div>
 
@@ -417,13 +500,17 @@
         <div class="reviewRow">
           <div>{{ item.title }}</div>
           <div class="tag analyst">{{ item.submitted_by }}</div>
+          <div class="tag" style="color:var(--muted2);">{{ item.reviewed_by }}</div>
           <div><span class="tag new">{{ item.type|capitalize }}</span></div>
           <div class="tag">Pending</div>
+          <div class="tag" style="color:var(--muted2);">{{ item.processed_at }}</div>
           <div style="text-align:right;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
             {% if item.type == 'track' %}
-            <a href="{{ url_for('analyst_edit') }}?track_id={{ item.id }}" class="openLink" style="text-decoration:none;">Open</a>
-            {% else %}
-            <span class="openLink" style="cursor:default;opacity:.7;">Open</span>
+            <a href="{{ url_for('analyst_edit', track_id=item.id, review='1', history_open='1' if show_history else '') }}" class="openLink" style="text-decoration:none;">Open</a>
+            {% elif item.type == 'artist' %}
+            <a href="{{ url_for('analyst_edit_artist', artist_id=item.id, review='1', history_open='1' if show_history else '') }}" class="openLink" style="text-decoration:none;">Open</a>
+            {% elif item.type == 'album' %}
+            <a href="{{ url_for('analyst_edit_album', album_id=item.id, review='1', history_open='1' if show_history else '') }}" class="openLink" style="text-decoration:none;">Open</a>
             {% endif %}
             <form method="post" action="{{ url_for('admin_review') }}" style="display:inline;">
               <input type="hidden" name="type" value="{{ item.type }}" />
@@ -440,11 +527,154 @@
           </div>
         </div>
         {% else %}
-        <div class="reviewRow"><div style="color:var(--muted);">No pending items.</div></div>
+        <div class="reviewRow"><div style="color:var(--muted);grid-column:1/-1;">No pending items.</div></div>
         {% endfor %}
+        {% if total_pending > page_size %}
+        <div class="actionRow" style="justify-content:flex-start;margin-top:14px;">
+          <span class="tag" style="margin-right:12px;">Page {{ page_pending }} of {{ ((total_pending + page_size - 1) // page_size) or 1 }}</span>
+          {% if page_pending > 1 %}
+          <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending - 1, page_history=page_history, history_open='1' if show_history else '') }}" class="btn btnNeutral" style="text-decoration:none;">Prev</a>
+          {% endif %}
+          {% if page_pending * page_size < total_pending %}
+          <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending + 1, page_history=page_history, history_open='1' if show_history else '') }}" class="btn btnNeutral" style="text-decoration:none;">Next</a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="cardBody" id="historyBody" style="display:{% if show_history %}block{% else %}none{% endif %};">
+        <div class="reviewSubtitle">Review History</div>
+        <form method="get" action="{{ url_for('admin') }}" class="searchRow">
+          <input type="hidden" name="q_pending" value="{{ q_pending }}" />
+          <input type="hidden" name="page_pending" value="{{ page_pending }}" />
+          <input type="hidden" name="history_open" id="historyOpenHistory" value="{{ '1' if show_history else '' }}" />
+          <input class="input searchSmall" name="q_history" value="{{ q_history }}" placeholder="Item" autocomplete="off" />
+          <button type="submit" class="btn">Search</button>
+          <a href="{{ url_for('admin', q_pending=q_pending or '', q_history='', page_pending=page_pending, page_history=1, history_open='1' if show_history else '') }}" class="btn btnNeutral" style="text-decoration:none;">Clear</a>
+        </form>
+        <div class="reviewGridHeader">
+          <div>Item</div>
+          <div>Submitted by</div>
+          <div>Reviewed by</div>
+          <div>Type</div>
+          <div>Status</div>
+          <div>Processed at</div>
+          <div style="text-align:right;">Action</div>
+        </div>
+
+        {% for item in history %}
+        <div class="reviewRow">
+          <div>
+            {% if item.type == 'track' %}
+            <a href="{{ url_for('analyst_edit', track_id=item.id, review='1', history_open='1' if show_history else '') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
+            {% elif item.type == 'artist' %}
+            <a href="{{ url_for('analyst_edit_artist', artist_id=item.id, review='1', history_open='1' if show_history else '') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
+            {% elif item.type == 'album' %}
+            <a href="{{ url_for('analyst_edit_album', album_id=item.id, review='1', history_open='1' if show_history else '') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
+            {% else %}
+            {{ item.title }}
+            {% endif %}
+          </div>
+          <div class="tag analyst">{{ item.submitted_by }}</div>
+          <div class="tag">{{ item.reviewed_by }}</div>
+          <div><span class="tag">{{ item.type|capitalize }}</span></div>
+          {% set st = (item.status or 'pending')|lower %}
+          <div class="tag {{ st }}">{{ st|capitalize }}</div>
+          <div class="tag" style="font-size:11px;">{{ item.processed_at }}</div>
+          <div style="text-align:right;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+            <form method="post" action="{{ url_for('admin_review') }}" style="display:inline;">
+              <input type="hidden" name="type" value="{{ item.type }}" />
+              <input type="hidden" name="id" value="{{ item.id }}" />
+              <input type="hidden" name="action" value="revert" />
+              <button type="submit" class="btn secondary">Undo</button>
+            </form>
+            {% if item.type == 'track' %}
+            <a href="{{ url_for('analyst_edit', track_id=item.id, review='1', history_open='1' if show_history else '') }}" class="btn openLink" style="text-decoration:none;">Details</a>
+            {% elif item.type == 'artist' %}
+            <a href="{{ url_for('analyst_edit_artist', artist_id=item.id, review='1', history_open='1' if show_history else '') }}" class="btn openLink" style="text-decoration:none;">Details</a>
+            {% elif item.type == 'album' %}
+            <a href="{{ url_for('analyst_edit_album', album_id=item.id, review='1', history_open='1' if show_history else '') }}" class="btn openLink" style="text-decoration:none;">Details</a>
+            {% endif %}
+          </div>
+        </div>
+        {% else %}
+        <div class="reviewRow"><div style="color:var(--muted);grid-column:1/-1;">No history yet.</div></div>
+        {% endfor %}
+        {% if total_history > page_size %}
+        <div class="actionRow" style="justify-content:flex-start;margin-top:14px;">
+          <span class="tag" style="margin-right:12px;">Page {{ page_history }} of {{ ((total_history + page_size - 1) // page_size) or 1 }}</span>
+          {% if page_history > 1 %}
+          <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history - 1, history_open='1' if show_history else '') }}" class="btn btnNeutral" style="text-decoration:none;">Prev</a>
+          {% endif %}
+          {% if page_history * page_size < total_history %}
+          <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history + 1, history_open='1' if show_history else '') }}" class="btn btnNeutral" style="text-decoration:none;">Next</a>
+          {% endif %}
+        </div>
+        {% endif %}
       </div>
     </section>
 
   </div>
+  <script>
+    (function(){
+      var btn = document.getElementById('btnCreateUser');
+      var cancelBtn = document.getElementById('btnCancelNewUser');
+      var row = document.getElementById('newUserRow');
+      if (btn && row) {
+        btn.addEventListener('click', function(){ row.style.display = row.style.display === 'none' ? 'grid' : 'none'; });
+      }
+      if (cancelBtn && row) {
+        cancelBtn.addEventListener('click', function(){ row.style.display = 'none'; });
+      }
+      var histBtn = document.getElementById('btnToggleHistory');
+      var histBody = document.getElementById('historyBody');
+      if (histBtn && histBody) {
+        histBtn.addEventListener('click', function(){
+          var visible = histBody.style.display !== 'none';
+          histBody.style.display = visible ? 'none' : 'block';
+          histBtn.textContent = visible ? 'View Past Decisions' : 'Hide Past Decisions';
+        });
+        function setHistoryOpenBeforeSubmit() {
+          var open = (histBody && histBody.style.display !== 'none') ? '1' : '';
+          var inp = document.getElementById('historyOpenPending');
+          if (inp) inp.value = open;
+          inp = document.getElementById('historyOpenHistory');
+          if (inp) inp.value = open;
+          try { sessionStorage.setItem('adminScrollY', String(window.scrollY)); } catch (e) {}
+        }
+        document.querySelectorAll('form[action*="admin"]').forEach(function(f){
+          if (f.method === 'get' && f.querySelector('input[name="q_pending"], input[name="q_history"]')) {
+            f.addEventListener('submit', setHistoryOpenBeforeSubmit);
+          }
+        });
+      }
+      var savedScroll = null;
+      try { savedScroll = sessionStorage.getItem('adminScrollY'); sessionStorage.removeItem('adminScrollY'); } catch (e) {}
+      if (savedScroll !== null && savedScroll !== '') {
+        var y = parseInt(savedScroll, 10);
+        if (!isNaN(y) && y > 0) {
+          function restoreScroll() {
+            window.scrollTo(0, y);
+          }
+          if (document.readyState === 'complete') {
+            setTimeout(restoreScroll, 0);
+          } else {
+            window.addEventListener('load', function(){ setTimeout(restoreScroll, 10); });
+          }
+        }
+      }
+        document.querySelectorAll('a.btnNeutral[href*="admin"]').forEach(function(a){
+        a.addEventListener('click', function(){
+          try { sessionStorage.setItem('adminScrollY', String(window.scrollY)); } catch (e) {}
+          if (histBody && histBody.style.display !== 'none') {
+            var href = a.getAttribute('href');
+            if (href && href.indexOf('history_open=1') === -1) {
+              a.setAttribute('href', href + (href.indexOf('?') !== -1 ? '&' : '?') + 'history_open=1');
+            }
+          }
+        });
+      });
+    })();
+  </script>
 </body>
 </html>

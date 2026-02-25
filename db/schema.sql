@@ -24,7 +24,8 @@ CREATE TABLE artists (
   status VARCHAR(20) NOT NULL DEFAULT 'approved' CHECK (status IN ('pending','approved','rejected')),
   added_at DATE,
   submitted_by BIGINT REFERENCES users(user_id),
-  reviewed_by BIGINT REFERENCES users(user_id)
+  reviewed_by BIGINT REFERENCES users(user_id),
+  reviewed_at TIMESTAMP
 );
 
 CREATE TABLE albums (
@@ -35,7 +36,8 @@ CREATE TABLE albums (
   status VARCHAR(20) NOT NULL DEFAULT 'approved' CHECK (status IN ('pending','approved','rejected')),
   added_at DATE,
   submitted_by BIGINT REFERENCES users(user_id),
-  reviewed_by BIGINT REFERENCES users(user_id)
+  reviewed_by BIGINT REFERENCES users(user_id),
+  reviewed_at TIMESTAMP
 );
 
 CREATE TABLE tracks (
@@ -48,7 +50,8 @@ CREATE TABLE tracks (
   status VARCHAR(20) NOT NULL DEFAULT 'approved' CHECK (status IN ('pending','approved','rejected')),
   added_at DATE,
   submitted_by BIGINT REFERENCES users(user_id),
-  reviewed_by BIGINT REFERENCES users(user_id)
+  reviewed_by BIGINT REFERENCES users(user_id),
+  reviewed_at TIMESTAMP
 );
 
 CREATE TABLE track_artist (
@@ -100,12 +103,12 @@ CREATE TABLE audio_features (
   time_signature SMALLINT
 );
 
--- seed users for demo (John Doe, Jane Doe, sherry.wang, Alex Smith)
+-- seed users for demo (John Doe, Jane Doe, analyst, Alex Smith)
 INSERT INTO users (email, password_hash, role, is_active)
 VALUES
-('john.doe@musicbox.local', 'demo', 'admin', TRUE),
+('admin@musicbox.local', 'demo', 'admin', TRUE),
+('analyst@musicbox.local', 'demo', 'analyst', TRUE),
 ('jane.doe@musicbox.local', 'demo', 'analyst', TRUE),
-('sherry.wang@musicbox.local', 'demo', 'analyst', TRUE),
 ('alex.smith@musicbox.local', 'demo', 'analyst', TRUE);
 -- MusicBox database schema
 
