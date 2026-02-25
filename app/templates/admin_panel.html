@@ -122,7 +122,10 @@
       font-family:var(--sans);
     }
 
-    .cardBody{ padding:18px 18px 22px; }
+    .cardBody{
+      padding:18px 18px 22px;
+      min-height:400px;
+    }
 
     .reviewSubtitle{
       font-family:var(--mono);
@@ -224,6 +227,7 @@
       cursor:pointer;
       user-select:none;
       min-width:92px;
+      text-decoration:none;
     }
 
     /* Content Review */
@@ -478,13 +482,13 @@
 
       <div class="cardBody">
         <div class="reviewSubtitle">To-do Queue</div>
-        <form method="get" action="{{ url_for('admin') }}" class="searchRow">
+        <form method="get" action="{{ url_for('admin', _anchor='contentReview') }}" class="searchRow">
           <input type="hidden" name="q_history" value="{{ q_history }}" />
           <input type="hidden" name="page_history" value="{{ page_history }}" />
           <input type="hidden" name="history_open" id="historyOpenPending" value="{{ '1' if show_history else '' }}" />
           <input class="input searchSmall" name="q_pending" value="{{ q_pending }}" placeholder="Item" autocomplete="off" />
           <button type="submit" class="btn">Search</button>
-          <a href="{{ url_for('admin', q_pending='', q_history=q_history or '', page_pending=1, page_history=page_history, history_open='1' if show_history else '') }}" class="btn btnNeutral" style="text-decoration:none;">Clear</a>
+          <a href="{{ url_for('admin', q_pending='', q_history=q_history or '', page_pending=1, page_history=page_history, history_open='1' if show_history else '', _anchor='contentReview') }}" class="btn btnNeutral" style="text-decoration:none;">Clear</a>
         </form>
         <div class="reviewGridHeader">
           <div>Item</div>
@@ -529,28 +533,37 @@
         {% else %}
         <div class="reviewRow"><div style="color:var(--muted);grid-column:1/-1;">No pending items.</div></div>
         {% endfor %}
-        {% if total_pending > page_size %}
-        <div class="actionRow" style="justify-content:flex-start;margin-top:14px;">
-          <span class="tag" style="margin-right:12px;">Page {{ page_pending }} of {{ ((total_pending + page_size - 1) // page_size) or 1 }}</span>
-          {% if page_pending > 1 %}
-          <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending - 1, page_history=page_history, history_open='1' if show_history else '') }}" class="btn btnNeutral" style="text-decoration:none;">Prev</a>
-          {% endif %}
-          {% if page_pending * page_size < total_pending %}
-          <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending + 1, page_history=page_history, history_open='1' if show_history else '') }}" class="btn btnNeutral" style="text-decoration:none;">Next</a>
-          {% endif %}
+        <div class="actionRow" style="justify-content:space-between;margin-top:14px;align-items:center;">
+          <div style="font-family:var(--mono);font-size:12px;color:var(--muted);">
+            {% if total_pending > 0 %}
+            Showing {{ pending_start }}–{{ pending_end }} of {{ total_pending }} items
+            {% else %}
+            Showing 0 items
+            {% endif %}
+          </div>
+          <div class="page-links" style="display:flex;gap:6px;align-items:center;font-family:var(--mono);font-size:12px;">
+            {% if page_pending > 1 %}
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending - 1, page_history=page_history, history_open='1' if show_history else '', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Prev</a>
+            {% endif %}
+            {% for p in pending_page_window %}
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=p, page_history=page_history, history_open='1' if show_history else '', _anchor='contentReview') }}" class="btn btnNeutral{% if p == page_pending %} btnAccent{% endif %}" style="min-width:0;padding:6px 10px;">{{ p }}</a>
+            {% endfor %}
+            {% if page_pending < pending_last_page %}
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending + 1, page_history=page_history, history_open='1' if show_history else '', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Next</a>
+            {% endif %}
+          </div>
         </div>
-        {% endif %}
       </div>
 
       <div class="cardBody" id="historyBody" style="display:{% if show_history %}block{% else %}none{% endif %};">
         <div class="reviewSubtitle">Review History</div>
-        <form method="get" action="{{ url_for('admin') }}" class="searchRow">
+        <form method="get" action="{{ url_for('admin', _anchor='contentReview') }}" class="searchRow">
           <input type="hidden" name="q_pending" value="{{ q_pending }}" />
           <input type="hidden" name="page_pending" value="{{ page_pending }}" />
           <input type="hidden" name="history_open" id="historyOpenHistory" value="{{ '1' if show_history else '' }}" />
           <input class="input searchSmall" name="q_history" value="{{ q_history }}" placeholder="Item" autocomplete="off" />
           <button type="submit" class="btn">Search</button>
-          <a href="{{ url_for('admin', q_pending=q_pending or '', q_history='', page_pending=page_pending, page_history=1, history_open='1' if show_history else '') }}" class="btn btnNeutral" style="text-decoration:none;">Clear</a>
+          <a href="{{ url_for('admin', q_pending=q_pending or '', q_history='', page_pending=page_pending, page_history=1, history_open='1' if show_history else '', _anchor='contentReview') }}" class="btn btnNeutral" style="text-decoration:none;">Clear</a>
         </form>
         <div class="reviewGridHeader">
           <div>Item</div>
@@ -600,32 +613,96 @@
         {% else %}
         <div class="reviewRow"><div style="color:var(--muted);grid-column:1/-1;">No history yet.</div></div>
         {% endfor %}
-        {% if total_history > page_size %}
-        <div class="actionRow" style="justify-content:flex-start;margin-top:14px;">
-          <span class="tag" style="margin-right:12px;">Page {{ page_history }} of {{ ((total_history + page_size - 1) // page_size) or 1 }}</span>
-          {% if page_history > 1 %}
-          <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history - 1, history_open='1' if show_history else '') }}" class="btn btnNeutral" style="text-decoration:none;">Prev</a>
-          {% endif %}
-          {% if page_history * page_size < total_history %}
-          <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history + 1, history_open='1' if show_history else '') }}" class="btn btnNeutral" style="text-decoration:none;">Next</a>
-          {% endif %}
+        <div class="actionRow" style="justify-content:space-between;margin-top:14px;align-items:center;">
+          <div style="font-family:var(--mono);font-size:12px;color:var(--muted);">
+            {% if total_history > 0 %}
+            Showing {{ history_start }}–{{ history_end }} of {{ total_history }} records
+            {% else %}
+            Showing 0 records
+            {% endif %}
+          </div>
+          <div class="page-links" style="display:flex;gap:6px;align-items:center;font-family:var(--mono);font-size:12px;">
+            {% if page_history > 1 %}
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history - 1, history_open='1' if show_history else '', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Prev</a>
+            {% endif %}
+            {% for p in history_page_window %}
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=p, history_open='1' if show_history else '', _anchor='contentReview') }}" class="btn btnNeutral{% if p == page_history %} btnAccent{% endif %}" style="min-width:0;padding:6px 10px;">{{ p }}</a>
+            {% endfor %}
+            {% if page_history < history_last_page %}
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history + 1, history_open='1' if show_history else '', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Next</a>
+            {% endif %}
+          </div>
         </div>
-        {% endif %}
       </div>
     </section>
 
   </div>
   <script>
     (function(){
+      // 禁用浏览器原生滚动恢复，避免与自定义逻辑冲突
+      if ('scrollRestoration' in history) {
+        history.scrollRestoration = 'manual';
+      }
+
+      function saveScroll() {
+        try {
+          sessionStorage.setItem('adminScrollY', String(window.scrollY));
+        } catch (e) {}
+      }
+
+      // 所有可能触发跳转的点击行为，统一记录滚动位置
+      document.addEventListener('click', function(e){
+        if (e.target.closest('button, a.btn, a.openLink, .pill')) {
+          saveScroll();
+        }
+      });
+
+      // 表单提交也记录
+      document.addEventListener('submit', function(){
+        saveScroll();
+      });
+
+      // 页面加载后，使用 requestAnimationFrame 尽早、平滑地恢复滚动
+      (function restoreOnLoad(){
+        var savedY = null;
+        try {
+          savedY = sessionStorage.getItem('adminScrollY');
+          if (savedY !== null) {
+            sessionStorage.removeItem('adminScrollY');
+          }
+        } catch (e) {}
+        if (!savedY) return;
+
+        var y = parseInt(savedY, 10);
+        if (isNaN(y) || y <= 0) return;
+
+        var attempts = 0;
+        function performScroll() {
+          window.scrollTo({ top: y, behavior: 'instant' });
+          attempts++;
+          if (attempts < 5) {
+            window.requestAnimationFrame(performScroll);
+          }
+        }
+        window.requestAnimationFrame(performScroll);
+      })();
+
+      // Create User 行显隐
       var btn = document.getElementById('btnCreateUser');
       var cancelBtn = document.getElementById('btnCancelNewUser');
       var row = document.getElementById('newUserRow');
       if (btn && row) {
-        btn.addEventListener('click', function(){ row.style.display = row.style.display === 'none' ? 'grid' : 'none'; });
+        btn.addEventListener('click', function(){
+          row.style.display = row.style.display === 'none' ? 'grid' : 'none';
+        });
       }
       if (cancelBtn && row) {
-        cancelBtn.addEventListener('click', function(){ row.style.display = 'none'; });
+        cancelBtn.addEventListener('click', function(){
+          row.style.display = 'none';
+        });
       }
+
+      // History 展开/折叠 + 在提交前写入 history_open 隐藏字段
       var histBtn = document.getElementById('btnToggleHistory');
       var histBody = document.getElementById('historyBody');
       if (histBtn && histBody) {
@@ -634,46 +711,33 @@
           histBody.style.display = visible ? 'none' : 'block';
           histBtn.textContent = visible ? 'View Past Decisions' : 'Hide Past Decisions';
         });
+
         function setHistoryOpenBeforeSubmit() {
           var open = (histBody && histBody.style.display !== 'none') ? '1' : '';
           var inp = document.getElementById('historyOpenPending');
           if (inp) inp.value = open;
           inp = document.getElementById('historyOpenHistory');
           if (inp) inp.value = open;
-          try { sessionStorage.setItem('adminScrollY', String(window.scrollY)); } catch (e) {}
         }
-        document.querySelectorAll('form[action*="admin"]').forEach(function(f){
-          if (f.method === 'get' && f.querySelector('input[name="q_pending"], input[name="q_history"]')) {
+
+        document.querySelectorAll('form[action*=\"admin\"]').forEach(function(f){
+          if (f.method.toLowerCase() === 'get' && f.querySelector('input[name=\"q_pending\"], input[name=\"q_history\"]')) {
             f.addEventListener('submit', setHistoryOpenBeforeSubmit);
           }
         });
-      }
-      var savedScroll = null;
-      try { savedScroll = sessionStorage.getItem('adminScrollY'); sessionStorage.removeItem('adminScrollY'); } catch (e) {}
-      if (savedScroll !== null && savedScroll !== '') {
-        var y = parseInt(savedScroll, 10);
-        if (!isNaN(y) && y > 0) {
-          function restoreScroll() {
-            window.scrollTo(0, y);
-          }
-          if (document.readyState === 'complete') {
-            setTimeout(restoreScroll, 0);
-          } else {
-            window.addEventListener('load', function(){ setTimeout(restoreScroll, 10); });
-          }
-        }
-      }
-        document.querySelectorAll('a.btnNeutral[href*="admin"]').forEach(function(a){
-        a.addEventListener('click', function(){
-          try { sessionStorage.setItem('adminScrollY', String(window.scrollY)); } catch (e) {}
-          if (histBody && histBody.style.display !== 'none') {
-            var href = a.getAttribute('href');
-            if (href && href.indexOf('history_open=1') === -1) {
-              a.setAttribute('href', href + (href.indexOf('?') !== -1 ? '&' : '?') + 'history_open=1');
+
+        // 当 History 当前是展开状态时，点击分页 / Clear 链接自动带上 history_open=1
+        document.querySelectorAll('a.btnNeutral[href*=\"admin\"]').forEach(function(a){
+          a.addEventListener('click', function(){
+            if (histBody && histBody.style.display !== 'none') {
+              var href = a.getAttribute('href') || '';
+              if (href.indexOf('history_open=1') === -1) {
+                a.setAttribute('href', href + (href.indexOf('?') !== -1 ? '&' : '?') + 'history_open=1');
+              }
             }
-          }
+          });
         });
-      });
+      }
     })();
   </script>
 </body>

@@ -209,10 +209,10 @@ def viewer():
             pass
 
     if chart == "song":
+        # Song chart: each track shows all associated artists (not just one)
         song_sql = """
-        SELECT *
-        FROM (
-          SELECT DISTINCT ON (t.track_id)
+        WITH decade_tracks AS (
+          SELECT
             t.track_id,
             t.track_name,
             t.popularity,
@@ -233,9 +233,35 @@ def viewer():
                   AND EXTRACT(YEAR FROM al.release_date)
                       BETWEEN %(decade_start)s AND %(decade_end)s
             ))
-          ORDER BY t.track_id, t.popularity DESC NULLS LAST
-        ) AS x
-        ORDER BY x.popularity DESC NULLS LAST
+        ),
+        dedup AS (
+          SELECT DISTINCT ON (track_id)
+            track_id, track_name, popularity, preview_url,
+            album_name, album_image_url, release_date
+          FROM decade_tracks
+          ORDER BY track_id, popularity DESC NULLS LAST
+        ),
+        artist_agg AS (
+          SELECT
+            track_id,
+            array_agg(artist_id ORDER BY artist_name) AS artist_ids,
+            array_agg(artist_name ORDER BY artist_name) AS artist_names
+          FROM decade_tracks
+          GROUP BY track_id
+        )
+        SELECT
+          d.track_id,
+          d.track_name,
+          d.popularity,
+          d.preview_url,
+          a.artist_ids,
+          a.artist_names,
+          d.album_name,
+          d.album_image_url,
+          d.release_date
+        FROM dedup d
+        JOIN artist_agg a USING (track_id)
+        ORDER BY d.popularity DESC NULLS LAST
         LIMIT 50;
         """
         with get_conn() as conn:
@@ -414,11 +440,11 @@ def viewer_genre_chart():
         with conn.cursor() as cur:
             if chart_type == "songs":
                 sql = """
-                SELECT *
-                FROM (
-                  SELECT DISTINCT ON (t.track_id)
+                WITH genre_tracks AS (
+                  SELECT
                     t.track_id, t.track_name, t.popularity, t.preview_url,
-                    ar.artist_id, ar.artist_name, al.album_id, al.album_name, al.album_image_url
+                    ar.artist_id, ar.artist_name,
+                    al.album_id, al.album_name, al.album_image_url
                   FROM tracks t
                   JOIN track_genres tg ON tg.track_id = t.track_id AND tg.genre_name = %(genre)s
                   JOIN track_artist ta ON ta.track_id = t.track_id
@@ -431,27 +457,57 @@ def viewer_genre_chart():
                           AND EXTRACT(YEAR FROM al.release_date)
                               BETWEEN %(decade_start)s AND %(decade_end)s
                     ))
-                  ORDER BY t.track_id, t.popularity DESC NULLS LAST
-                ) AS x
-                ORDER BY x.popularity DESC NULLS LAST
+                ),
+                dedup AS (
+                  SELECT DISTINCT ON (track_id)
+                    track_id, track_name, popularity, preview_url,
+                    album_id, album_name, album_image_url
+                  FROM genre_tracks
+                  ORDER BY track_id, popularity DESC NULLS LAST
+                ),
+                artist_agg AS (
+                  SELECT
+                    track_id,
+                    array_agg(artist_id ORDER BY artist_name) AS artist_ids,
+                    array_agg(artist_name ORDER BY artist_name) AS artist_names
+                  FROM genre_tracks
+                  GROUP BY track_id
+                )
+                SELECT
+                  d.track_id,
+                  d.track_name,
+                  d.popularity,
+                  d.preview_url,
+                  a.artist_ids,
+                  a.artist_names,
+                  d.album_id,
+                  d.album_name,
+                  d.album_image_url
+                FROM dedup d
+                JOIN artist_agg a USING (track_id)
+                ORDER BY d.popularity DESC NULLS LAST
                 LIMIT 5;
                 """
                 cur.execute(sql, params)
                 rows = cur.fetchall()
-                items = [
-                    {
-                        "rank": i + 1,
-                        "track_id": r[0],
-                        "track_name": r[1],
-                        "artist_id": r[4],
-                        "artist_name": r[5],
-                        "album_id": r[6],
-                        "album_name": r[7],
-                        "album_image_url": r[8],
-                        "preview_url": r[3],
-                    }
-                    for i, r in enumerate(rows)
-                ]
+                for i, r in enumerate(rows):
+                    artist_ids = r[4] or []
+                    artist_names = r[5] or []
+                    primary_artist_id = artist_ids[0] if artist_ids else None
+                    display_name = ", ".join(artist_names) if artist_names else None
+                    items.append(
+                        {
+                            "rank": i + 1,
+                            "track_id": r[0],
+                            "track_name": r[1],
+                            "artist_id": primary_artist_id,
+                            "artist_name": display_name,
+                            "album_id": r[6],
+                            "album_name": r[7],
+                            "album_image_url": r[8],
+                            "preview_url": r[3],
+                        }
+                    )
             elif chart_type == "artists":
                 sql = """
                 WITH decade_tracks AS (
@@ -1909,8 +1965,30 @@ def admin():
             full_history = _admin_history(cur, q=q_history)
     total_pending = len(full_pending)
     total_history = len(full_history)
-    pending = full_pending[(page_pending - 1) * page_size : page_pending * page_size]
-    history = full_history[(page_history - 1) * page_size : page_history * page_size]
+
+    # Pending pagination (20 per page, like manage_list)
+    last_page_pending = max(1, (total_pending + page_size - 1) // page_size) if total_pending else 1
+    if page_pending > last_page_pending:
+        page_pending = last_page_pending
+    offset_pending = (page_pending - 1) * page_size
+    pending = full_pending[offset_pending : offset_pending + page_size]
+    pending_start = (offset_pending + 1) if total_pending else 0
+    pending_end = min(offset_pending + page_size, total_pending) if total_pending else 0
+    start_p = max(1, page_pending - 2)
+    end_p = min(last_page_pending, page_pending + 2)
+    pending_page_window = list(range(start_p, end_p + 1))
+
+    # History pagination
+    last_page_history = max(1, (total_history + page_size - 1) // page_size) if total_history else 1
+    if page_history > last_page_history:
+        page_history = last_page_history
+    offset_history = (page_history - 1) * page_size
+    history = full_history[offset_history : offset_history + page_size]
+    history_start = (offset_history + 1) if total_history else 0
+    history_end = min(offset_history + page_size, total_history) if total_history else 0
+    start_h = max(1, page_history - 2)
+    end_h = min(last_page_history, page_history + 2)
+    history_page_window = list(range(start_h, end_h + 1))
     return render_template(
         "admin_panel.html",
         users=users,
@@ -1920,6 +1998,14 @@ def admin():
         total_history=total_history,
         page_pending=page_pending,
         page_history=page_history,
+        pending_last_page=last_page_pending,
+        history_last_page=last_page_history,
+        pending_start=pending_start,
+        pending_end=pending_end,
+        history_start=history_start,
+        history_end=history_end,
+        pending_page_window=pending_page_window,
+        history_page_window=history_page_window,
         page_size=page_size,
         q_pending=q_pending,
         q_history=q_history,

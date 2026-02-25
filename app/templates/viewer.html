@@ -301,7 +301,9 @@
     <!-- Top bar (右侧链接已删除) -->
     <div class="topbar">
       <div class="logo">
-        <div class="logo-badge">♪</div>
+        <a href="{{ url_for('admin_login') }}" style="text-decoration:none;">
+          <div class="logo-badge" title=" " aria-label=" " role="button">♪</div>
+        </a>
         <div>
           <div style="font-size:14px;line-height:1">MusicBox</div>
           <div class="slogan">Discover your sound.</div>
@@ -369,7 +371,17 @@
               <td class="rank">#{{ loop.index }}</td>
               <td><div class="cover">{% if r[7] %}<img src="{{ r[7] }}" loading="lazy" alt="cover" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/cover_placeholder.png') }}';"/>{% else %}<img src="{{ url_for('static', filename='img/cover_placeholder.png') }}" alt=""/>{% endif %}</div></td>
               <td><div class="main"><a href="{{ url_for('track') }}?track_id={{ r[0] }}" style="color:inherit;text-decoration:none;">{{ r[1] }}</a></div></td>
-              <td><div class="sub">{% if r[4] %}<a href="{{ url_for('artist') }}?artist_id={{ r[4] }}" style="color:inherit;text-decoration:none;">{{ r[5] }}</a>{% else %}{{ r[5] }}{% endif %}</div></td>
+              <td>
+                <div class="sub">
+                  {% if r[4] and r[5] %}
+                    {% for i in range(r[5]|length) %}
+                      <a href="{{ url_for('artist') }}?artist_id={{ r[4][i] }}" style="color:inherit;text-decoration:none;">{{ r[5][i] }}</a>{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                  {% else %}
+                    {{ r[5] }}
+                  {% endif %}
+                </div>
+              </td>
               <td class="preview-cell">{% if r[3] %}<button type="button" class="play preview-play" data-src="{{ r[3] }}" aria-label="播放">▶</button>{% else %}-{% endif %}</td>
             </tr>
             {% endfor %}
