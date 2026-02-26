@@ -435,6 +435,29 @@
       .kv{ grid-template-columns: 1fr; }
       .kv .k{ margin-top:6px; }
     }
+    @media (max-width: 600px){
+      .wrap{ padding:0 12px 32px; }
+      .topbar{
+        flex-wrap:wrap;
+        gap:12px;
+        padding:14px 16px;
+        border-radius:20px;
+      }
+      .logo{ min-width:0; }
+      .brand .name{ font-size:14px; }
+      .brand .sub{ font-size:11px; }
+      .topbar .pill{ padding:8px 12px; font-size:12px; }
+      .sectionHeader{ flex-direction:column; align-items:flex-start; gap:12px; }
+      .sectionHeader .titleWrap{ width:100%; }
+      .searchRow{
+        flex-wrap:wrap;
+        gap:10px;
+      }
+      .searchRow .input.searchSmall{ width:100%; max-width:none; }
+      .actionRow{ flex-wrap:wrap; gap:10px; }
+      .page-links{ flex-wrap:wrap; justify-content:center; }
+      .cardBody{ padding:14px; }
+    }
   </style>
 </head>
 

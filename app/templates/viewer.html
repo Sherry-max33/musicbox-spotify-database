@@ -292,6 +292,18 @@
     @media (max-width: 680px){
       .grid{grid-template-columns: repeat(2, minmax(0, 1fr));}
       .rank{width:44px}
+      .topbar{flex-wrap:wrap;gap:12px;}
+      .search-wrap-global{width:100%;min-width:0;}
+      .controls{flex-direction:column;align-items:flex-start;}
+      .filter{margin-left:0;}
+    }
+    @media (max-width: 480px){
+      .wrap{padding:16px 12px 40px;}
+      .grid{grid-template-columns:1fr;}
+      .rank{width:40px;font-size:13px;}
+      .section-title{font-size:24px;}
+      .tab{padding:10px 12px;font-size:13px;}
+      table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;}
     }
   </style>
 </head>
