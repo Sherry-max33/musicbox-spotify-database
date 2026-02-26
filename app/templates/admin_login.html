@@ -70,6 +70,28 @@
       font-size:12px;
     }
 
+    .top-spacer{
+      flex:1;
+    }
+
+    .back-btn{
+      font-family:var(--mono);
+      font-size:11px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      padding:6px 12px;
+      border-radius:999px;
+      border:1px solid rgba(0,245,160,.55);
+      background:rgba(0,245,160,.10);
+      color:var(--text);
+      text-decoration:none;
+      white-space:nowrap;
+    }
+    .back-btn:hover{
+      border-color:rgba(0,245,160,.8);
+      background:rgba(0,245,160,.16);
+    }
+
     .content{
       padding:26px 20px 30px;
       display:grid;
@@ -180,6 +202,8 @@
       <div class="brand">
         <div class="name">MusicBox <span style="color:var(--muted);font-weight:900">Admin</span></div>
       </div>
+      <div class="top-spacer"></div>
+      <a href="{{ url_for('viewer') }}" class="back-btn">Back to Viewer</a>
     </div>
 
     <div class="content">
