@@ -213,10 +213,20 @@ def viewer():
             decade_end = start_year + 9
         except (ValueError, AttributeError):
             pass
+    has_decade_filter = decade_start is not None and decade_end is not None
 
     if chart == "song":
         # Song chart: each track shows all associated artists (not just one)
-        song_sql = """
+        decade_condition = (
+            """
+            AND al.release_date IS NOT NULL
+              AND EXTRACT(YEAR FROM al.release_date)
+                  BETWEEN %(decade_start)s AND %(decade_end)s
+            """
+            if has_decade_filter
+            else ""
+        )
+        song_sql = f"""
         WITH decade_tracks AS (
           SELECT
             t.track_id,
@@ -234,11 +244,7 @@ def viewer():
           JOIN album_tracks at ON at.track_id = t.track_id
           JOIN albums al ON al.album_id = at.album_id
           WHERE t.status = 'approved'
-            AND (%(decade_start)s IS NULL OR (
-                  al.release_date IS NOT NULL
-                  AND EXTRACT(YEAR FROM al.release_date)
-                      BETWEEN %(decade_start)s AND %(decade_end)s
-            ))
+{decade_condition}
         ),
         dedup AS (
           SELECT DISTINCT ON (track_id)
@@ -271,16 +277,25 @@ def viewer():
         LIMIT 50;
         """
         with get_conn() as conn:
+            params = {}
+            if has_decade_filter:
+                params = {"decade_start": decade_start, "decade_end": decade_end}
             with conn.cursor() as cur:
-                cur.execute(
-                    song_sql,
-                    {"decade_start": decade_start, "decade_end": decade_end},
-                )
+                cur.execute(song_sql, params)
                 rows = cur.fetchall()
 
     elif chart == "artist":
         # Same as Song Top Chart: decade filter by album release_date; same track in multiple albums counts multiple times (no dedupe)
-        artist_sql = """
+        decade_condition = (
+            """
+            AND al.release_date IS NOT NULL
+              AND EXTRACT(YEAR FROM al.release_date)
+                  BETWEEN %(decade_start)s AND %(decade_end)s
+            """
+            if has_decade_filter
+            else ""
+        )
+        artist_sql = f"""
         WITH decade_tracks AS (
           SELECT t.track_id, t.track_name, t.preview_url, t.popularity, ar.artist_id, ar.artist_name
           FROM tracks t
@@ -289,11 +304,7 @@ def viewer():
           JOIN album_tracks at ON at.track_id = t.track_id
           JOIN albums al ON al.album_id = at.album_id
           WHERE t.status = 'approved'
-            AND (%(decade_start)s IS NULL OR (
-                  al.release_date IS NOT NULL
-                  AND EXTRACT(YEAR FROM al.release_date)
-                      BETWEEN %(decade_start)s AND %(decade_end)s
-            ))
+{decade_condition}
         ),
         ranked AS (
           SELECT artist_id,
@@ -316,16 +327,25 @@ def viewer():
         LIMIT 10;
         """
         with get_conn() as conn:
+            params = {}
+            if has_decade_filter:
+                params = {"decade_start": decade_start, "decade_end": decade_end}
             with conn.cursor() as cur:
-                cur.execute(
-                    artist_sql,
-                    {"decade_start": decade_start, "decade_end": decade_end},
-                )
+                cur.execute(artist_sql, params)
                 rows = cur.fetchall()
 
     elif chart == "album":
         # Album score = sum of track popularity in album (each track once); album artist = artist with highest total popularity in that album
-        album_sql = """
+        decade_condition_a = (
+            """
+            AND a.release_date IS NOT NULL
+              AND EXTRACT(YEAR FROM a.release_date)
+                  BETWEEN %(decade_start)s AND %(decade_end)s
+            """
+            if has_decade_filter
+            else ""
+        )
+        album_sql = f"""
         WITH album_total AS (
           SELECT a.album_id, a.album_name, a.album_image_url,
                  SUM(t.popularity) AS album_total
@@ -333,11 +353,7 @@ def viewer():
           JOIN album_tracks at ON at.album_id = a.album_id
           JOIN tracks t ON t.track_id = at.track_id
           WHERE t.status = 'approved'
-            AND (%(decade_start)s IS NULL OR (
-                  a.release_date IS NOT NULL
-                  AND EXTRACT(YEAR FROM a.release_date)
-                      BETWEEN %(decade_start)s AND %(decade_end)s
-            ))
+{decade_condition_a}
           GROUP BY a.album_id, a.album_name, a.album_image_url
         ),
         album_artist_pop AS (
@@ -348,11 +364,7 @@ def viewer():
           JOIN track_artist ta ON ta.track_id = t.track_id
           JOIN artists ar ON ar.artist_id = ta.artist_id
           WHERE t.status = 'approved'
-            AND (%(decade_start)s IS NULL OR (
-                  a.release_date IS NOT NULL
-                  AND EXTRACT(YEAR FROM a.release_date)
-                      BETWEEN %(decade_start)s AND %(decade_end)s
-            ))
+{decade_condition_a}
           GROUP BY a.album_id, ar.artist_id, ar.artist_name
         ),
         best_artist AS (
@@ -367,11 +379,11 @@ def viewer():
         LIMIT 10;
         """
         with get_conn() as conn:
+            params = {}
+            if has_decade_filter:
+                params = {"decade_start": decade_start, "decade_end": decade_end}
             with conn.cursor() as cur:
-                cur.execute(
-                    album_sql,
-                    {"decade_start": decade_start, "decade_end": decade_end},
-                )
+                cur.execute(album_sql, params)
                 rows = cur.fetchall()
 
     else:
@@ -436,16 +448,22 @@ def viewer_genre_chart():
     if chart_type not in ("songs", "artists", "albums"):
         chart_type = "songs"
     decade_start, decade_end = _decade_to_range(decade_param)
-    params = {
-        "genre": genre,
-        "decade_start": decade_start,
-        "decade_end": decade_end,
-    }
+    has_decade_filter = decade_start is not None and decade_end is not None
+    base_params = {"genre": genre}
     items = []
     with get_conn() as conn:
         with conn.cursor() as cur:
             if chart_type == "songs":
-                sql = """
+                decade_condition = (
+                    """
+                    AND al.release_date IS NOT NULL
+                      AND EXTRACT(YEAR FROM al.release_date)
+                          BETWEEN %(decade_start)s AND %(decade_end)s
+                    """
+                    if has_decade_filter
+                    else ""
+                )
+                sql = f"""
                 WITH genre_tracks AS (
                   SELECT
                     t.track_id, t.track_name, t.popularity, t.preview_url,
@@ -458,11 +476,7 @@ def viewer_genre_chart():
                   JOIN album_tracks at ON at.track_id = t.track_id
                   JOIN albums al ON al.album_id = at.album_id
                   WHERE t.status = 'approved'
-                    AND (%(decade_start)s IS NULL OR (
-                          al.release_date IS NOT NULL
-                          AND EXTRACT(YEAR FROM al.release_date)
-                              BETWEEN %(decade_start)s AND %(decade_end)s
-                    ))
+{decade_condition}
                 ),
                 dedup AS (
                   SELECT DISTINCT ON (track_id)
@@ -494,6 +508,9 @@ def viewer_genre_chart():
                 ORDER BY d.popularity DESC NULLS LAST
                 LIMIT 5;
                 """
+                params = dict(base_params)
+                if has_decade_filter:
+                    params.update({"decade_start": decade_start, "decade_end": decade_end})
                 cur.execute(sql, params)
                 rows = cur.fetchall()
                 for i, r in enumerate(rows):
@@ -515,7 +532,16 @@ def viewer_genre_chart():
                         }
                     )
             elif chart_type == "artists":
-                sql = """
+                decade_condition = (
+                    """
+                    AND al.release_date IS NOT NULL
+                      AND EXTRACT(YEAR FROM al.release_date)
+                          BETWEEN %(decade_start)s AND %(decade_end)s
+                    """
+                    if has_decade_filter
+                    else ""
+                )
+                sql = f"""
                 WITH decade_tracks AS (
                   SELECT t.track_id, t.track_name, t.preview_url, t.popularity, ar.artist_id, ar.artist_name, al.album_image_url
                   FROM tracks t
@@ -525,11 +551,7 @@ def viewer_genre_chart():
                   JOIN album_tracks at ON at.track_id = t.track_id
                   JOIN albums al ON al.album_id = at.album_id
                   WHERE t.status = 'approved'
-                    AND (%(decade_start)s IS NULL OR (
-                          al.release_date IS NOT NULL
-                          AND EXTRACT(YEAR FROM al.release_date)
-                              BETWEEN %(decade_start)s AND %(decade_end)s
-                    ))
+{decade_condition}
                 ),
                 ranked AS (
                   SELECT artist_id, artist_name, track_name, preview_url, album_image_url,
@@ -549,6 +571,9 @@ def viewer_genre_chart():
                 ORDER BY s.score DESC NULLS LAST
                 LIMIT 5;
                 """
+                params = dict(base_params)
+                if has_decade_filter:
+                    params.update({"decade_start": decade_start, "decade_end": decade_end})
                 cur.execute(sql, params)
                 rows = cur.fetchall()
                 items = [
