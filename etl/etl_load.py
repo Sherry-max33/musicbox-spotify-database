@@ -18,7 +18,7 @@ Viewer's EXPLORE BY GENRES filters by these 8 categories.
 
 Primary genre for songs/albums/artists (track_genres + artist_primary_genre)
 ----------------------------------------------------------------------------
-- Songs/albums: only the "first" genre in the CSV track genre list is mapped to Big-8 and written to track_genres (one row per track). Viewer EXPLORE BY GENRES uses this.
+- Songs/albums: scan the CSV genre list left-to-right and pick the first genre that can be mapped to Big-8; write that to track_genres (one row per track). Viewer EXPLORE BY GENRES uses this.
 - Artists: same as song/album—one primary Big-8 per artist: primary genre of that artist's "highest popularity" track that has track_genres, written to artist_primary_genre (one row per artist). Viewer EXPLORE BY GENRES artist tab uses this.
 - Example: "dance pop, pop, urban contemporary, r&b" → take only "dance pop" → Pop; that track/artist under that track appears only under Pop.
 - artist_genres is still written (all fine genres mapped) for Analyst etc.; EXPLORE BY GENRES artist filter uses artist_primary_genre.
@@ -478,7 +478,7 @@ def main():
     )
 
     # -----------------------
-    # TRACK_GENRES (one primary Big-8 per track: first genre in CSV for that track; used for song/album primary genre)
+    # TRACK_GENRES (one primary Big-8 per track: first mappable genre in CSV for that track; used for song/album primary genre)
     # -----------------------
     track_genres_rows = []
     if c_genres:
@@ -488,12 +488,14 @@ def main():
             parts = split_multi(gval)
             if not parts:
                 continue
-            first_genre = re.sub(r"\s+", " ", parts[0].strip().lower())[:120]
-            if not first_genre:
-                continue
-            g_group = map_genre_to_group(first_genre)
-            if g_group:
-                track_genres_rows.append((tid, g_group))
+            for raw in parts:
+                g_fine = re.sub(r"\s+", " ", str(raw).strip().lower())[:120]
+                if not g_fine:
+                    continue
+                g_group = map_genre_to_group(g_fine)
+                if g_group:
+                    track_genres_rows.append((tid, g_group))
+                    break
     track_genres = (
         pd.DataFrame(track_genres_rows, columns=["track_id", "genre_name"]).drop_duplicates(subset=["track_id"], keep="first")
         if track_genres_rows else pd.DataFrame(columns=["track_id", "genre_name"])
@@ -684,7 +686,7 @@ def main():
                 list(artist_primary_genre.itertuples(index=False, name=None)),
             )
 
-        # track_genres: create table if needed, truncate, then insert; one primary Big-8 per track from first genre in CSV
+        # track_genres: create table if needed, truncate, then insert; one primary Big-8 per track from first mappable genre in CSV
         if len(track_genres) > 0:
             # Table is created in schema.sql with PRIMARY KEY (track_id, genre_name);
             # here we just ensure it exists, then truncate and reinsert.

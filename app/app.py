@@ -20,7 +20,7 @@ Viewer sorting/ranking logic for /viewer (Song / Artist / Album Top Chart):
   - Sort: album score DESC NULLS LAST, top 10.
 
 - EXPLORE BY GENRES (lower part of /viewer)
-  - Songs/albums/artists filtered by "primary" genre, aligned with ETL: songs/albums use track_genres (first genre in CSV mapped to Big-8); artists use artist_primary_genre (primary genre of that artist's highest-popularity track that has track_genres).
+  - Songs/albums/artists filtered by "primary" genre, aligned with ETL: songs/albums use track_genres (first mappable genre in CSV mapped to Big-8); artists use artist_primary_genre (primary genre of that artist's highest-popularity track that has track_genres).
   - API: GET /viewer/api/genre_chart?genre=Pop&decade=all&type=songs|artists|albums; same logic as above; genre filter: track_genres for songs/albums, artist_primary_genre for artists; returns top 5 only.
   - Frontend keeps current layout; requests API by selected genre, decade, and Songs/Artists/Albums and renders grid.
 
@@ -1776,6 +1776,242 @@ def _admin_users(cur):
     ]
 
 
+def _admin_pending_count(cur, q=None):
+    q = (q or "").strip()
+    params = []
+    cond_track = ""
+    cond_album = ""
+    cond_artist = ""
+    if q:
+        like = "%" + q + "%"
+        cond_track = " AND t.track_name ILIKE %s"
+        cond_album = " AND a.album_name ILIKE %s"
+        cond_artist = " AND ar.artist_name ILIKE %s"
+        params.extend([like, like, like])
+    cur.execute(
+        f"""
+        WITH pending AS (
+          SELECT 'track'::text AS type, t.track_id AS id
+          FROM tracks t
+          WHERE t.status = 'pending'{cond_track}
+          UNION ALL
+          SELECT 'album'::text AS type, a.album_id AS id
+          FROM albums a
+          WHERE a.status = 'pending'{cond_album}
+          UNION ALL
+          SELECT 'artist'::text AS type, ar.artist_id AS id
+          FROM artists ar
+          WHERE ar.status = 'pending'{cond_artist}
+        )
+        SELECT COUNT(*) FROM pending;
+        """,
+        params,
+    )
+    row = cur.fetchone()
+    return int(row[0] or 0) if row else 0
+
+
+def _admin_pending_fetch(cur, q=None, limit=20, offset=0):
+    q = (q or "").strip()
+    params = []
+    cond_track = ""
+    cond_album = ""
+    cond_artist = ""
+    if q:
+        like = "%" + q + "%"
+        cond_track = " AND t.track_name ILIKE %s"
+        cond_album = " AND a.album_name ILIKE %s"
+        cond_artist = " AND ar.artist_name ILIKE %s"
+        params.extend([like, like, like])
+    cur.execute(
+        f"""
+        WITH pending AS (
+          SELECT 'track'::text AS type, t.track_id AS id, t.track_name AS title, u.email AS submitted_by
+          FROM tracks t
+          LEFT JOIN users u ON u.user_id = t.submitted_by
+          WHERE t.status = 'pending'{cond_track}
+          UNION ALL
+          SELECT 'album'::text AS type, a.album_id AS id, a.album_name AS title, u.email AS submitted_by
+          FROM albums a
+          LEFT JOIN users u ON u.user_id = a.submitted_by
+          WHERE a.status = 'pending'{cond_album}
+          UNION ALL
+          SELECT 'artist'::text AS type, ar.artist_id AS id, ar.artist_name AS title, u.email AS submitted_by
+          FROM artists ar
+          LEFT JOIN users u ON u.user_id = ar.submitted_by
+          WHERE ar.status = 'pending'{cond_artist}
+        )
+        SELECT type, id, title, submitted_by
+        FROM pending
+        ORDER BY type, id
+        LIMIT %s OFFSET %s;
+        """,
+        params + [int(limit), int(offset)],
+    )
+    rows = cur.fetchall()
+    return [
+        {
+            "type": r[0],
+            "id": r[1],
+            "title": (r[2] or ""),
+            "submitted_by": r[3] or "—",
+            "reviewed_by": "—",
+            "processed_at": "—",
+        }
+        for r in rows
+    ]
+
+
+def _admin_history_count(cur, q=None):
+    q = (q or "").strip()
+    params = []
+    cond_track = ""
+    cond_album = ""
+    cond_artist = ""
+    if q:
+        like = "%" + q + "%"
+        cond_track = " AND t.track_name ILIKE %s"
+        cond_album = " AND a.album_name ILIKE %s"
+        cond_artist = " AND ar.artist_name ILIKE %s"
+        params.extend([like, like, like])
+    try:
+        cur.execute(
+            f"""
+            WITH hist AS (
+              SELECT t.track_id AS id
+              FROM tracks t
+              WHERE t.status IN ('approved','rejected'){cond_track}
+              UNION ALL
+              SELECT a.album_id AS id
+              FROM albums a
+              WHERE a.status IN ('approved','rejected'){cond_album}
+              UNION ALL
+              SELECT ar.artist_id AS id
+              FROM artists ar
+              WHERE ar.status IN ('approved','rejected'){cond_artist}
+            )
+            SELECT COUNT(*) FROM hist;
+            """,
+            params,
+        )
+        row = cur.fetchone()
+        return int(row[0] or 0) if row else 0
+    except Exception:
+        cur.connection.rollback()
+        cur.execute(
+            f"""
+            WITH hist AS (
+              SELECT t.track_id AS id
+              FROM tracks t
+              WHERE t.status IN ('approved','rejected'){cond_track}
+              UNION ALL
+              SELECT a.album_id AS id
+              FROM albums a
+              WHERE a.status IN ('approved','rejected'){cond_album}
+              UNION ALL
+              SELECT ar.artist_id AS id
+              FROM artists ar
+              WHERE ar.status IN ('approved','rejected'){cond_artist}
+            )
+            SELECT COUNT(*) FROM hist;
+            """,
+            params,
+        )
+        row = cur.fetchone()
+        return int(row[0] or 0) if row else 0
+
+
+def _admin_history_fetch(cur, q=None, limit=20, offset=0):
+    q = (q or "").strip()
+    params = []
+    cond_track = ""
+    cond_album = ""
+    cond_artist = ""
+    if q:
+        like = "%" + q + "%"
+        cond_track = " AND t.track_name ILIKE %s"
+        cond_album = " AND a.album_name ILIKE %s"
+        cond_artist = " AND ar.artist_name ILIKE %s"
+        params.extend([like, like, like])
+    try:
+        cur.execute(
+            f"""
+            WITH hist AS (
+              SELECT 'track'::text AS type, t.track_id AS id, t.track_name AS title, t.status,
+                     u.email AS submitted_by, ru.email AS reviewed_by, t.reviewed_at AS processed_at
+              FROM tracks t
+              LEFT JOIN users u ON u.user_id = t.submitted_by
+              LEFT JOIN users ru ON ru.user_id = t.reviewed_by
+              WHERE t.status IN ('approved','rejected'){cond_track}
+              UNION ALL
+              SELECT 'album'::text AS type, a.album_id AS id, a.album_name AS title, a.status,
+                     u.email AS submitted_by, ru.email AS reviewed_by, a.reviewed_at AS processed_at
+              FROM albums a
+              LEFT JOIN users u ON u.user_id = a.submitted_by
+              LEFT JOIN users ru ON ru.user_id = a.reviewed_by
+              WHERE a.status IN ('approved','rejected'){cond_album}
+              UNION ALL
+              SELECT 'artist'::text AS type, ar.artist_id AS id, ar.artist_name AS title, ar.status,
+                     u.email AS submitted_by, ru.email AS reviewed_by, ar.reviewed_at AS processed_at
+              FROM artists ar
+              LEFT JOIN users u ON u.user_id = ar.submitted_by
+              LEFT JOIN users ru ON ru.user_id = ar.reviewed_by
+              WHERE ar.status IN ('approved','rejected'){cond_artist}
+            )
+            SELECT type, id, title, status, submitted_by, reviewed_by, processed_at
+            FROM hist
+            ORDER BY processed_at DESC NULLS LAST, type, id
+            LIMIT %s OFFSET %s;
+            """,
+            params + [int(limit), int(offset)],
+        )
+    except Exception:
+        cur.connection.rollback()
+        cur.execute(
+            f"""
+            WITH hist AS (
+              SELECT 'track'::text AS type, t.track_id AS id, t.track_name AS title, t.status,
+                     u.email AS submitted_by, NULL::text AS reviewed_by, t.added_at AS processed_at
+              FROM tracks t
+              LEFT JOIN users u ON u.user_id = t.submitted_by
+              WHERE t.status IN ('approved','rejected'){cond_track}
+              UNION ALL
+              SELECT 'album'::text AS type, a.album_id AS id, a.album_name AS title, a.status,
+                     u.email AS submitted_by, NULL::text AS reviewed_by, a.added_at AS processed_at
+              FROM albums a
+              LEFT JOIN users u ON u.user_id = a.submitted_by
+              WHERE a.status IN ('approved','rejected'){cond_album}
+              UNION ALL
+              SELECT 'artist'::text AS type, ar.artist_id AS id, ar.artist_name AS title, ar.status,
+                     u.email AS submitted_by, NULL::text AS reviewed_by, ar.added_at AS processed_at
+              FROM artists ar
+              LEFT JOIN users u ON u.user_id = ar.submitted_by
+              WHERE ar.status IN ('approved','rejected'){cond_artist}
+            )
+            SELECT type, id, title, status, submitted_by, reviewed_by, processed_at
+            FROM hist
+            ORDER BY processed_at DESC NULLS LAST, type, id
+            LIMIT %s OFFSET %s;
+            """,
+            params + [int(limit), int(offset)],
+        )
+    rows = cur.fetchall()
+    out = []
+    for r in rows:
+        out.append(
+            {
+                "type": r[0],
+                "id": r[1],
+                "title": (r[2] or ""),
+                "status": r[3] or "pending",
+                "submitted_by": r[4] or "—",
+                "reviewed_by": r[5] or "—",
+                "processed_at": _format_reviewed_at(r[6]),
+            }
+        )
+    return out
+
+
 def _admin_pending(cur, q=None):
     out = []
     params = ("%" + q + "%",) if q else ()
@@ -1998,29 +2234,33 @@ def admin():
     with get_conn() as conn:
         with conn.cursor() as cur:
             users = _admin_users(cur)
-            full_pending = _admin_pending(cur, q=q_pending)
-            full_history = _admin_history(cur, q=q_history)
-    total_pending = len(full_pending)
-    total_history = len(full_history)
+            total_pending = _admin_pending_count(cur, q=q_pending)
+            last_page_pending = max(1, (total_pending + page_size - 1) // page_size) if total_pending else 1
+            if page_pending > last_page_pending:
+                page_pending = last_page_pending
+            offset_pending = (page_pending - 1) * page_size
+            pending = _admin_pending_fetch(cur, q=q_pending, limit=page_size, offset=offset_pending)
 
-    # Pending pagination (20 per page, like manage_list)
-    last_page_pending = max(1, (total_pending + page_size - 1) // page_size) if total_pending else 1
-    if page_pending > last_page_pending:
-        page_pending = last_page_pending
-    offset_pending = (page_pending - 1) * page_size
-    pending = full_pending[offset_pending : offset_pending + page_size]
+            if show_history:
+                total_history = _admin_history_count(cur, q=q_history)
+                last_page_history = max(1, (total_history + page_size - 1) // page_size) if total_history else 1
+                if page_history > last_page_history:
+                    page_history = last_page_history
+                offset_history = (page_history - 1) * page_size
+                history = _admin_history_fetch(cur, q=q_history, limit=page_size, offset=offset_history)
+            else:
+                total_history = 0
+                last_page_history = 1
+                page_history = 1
+                offset_history = 0
+                history = []
+
     pending_start = (offset_pending + 1) if total_pending else 0
     pending_end = min(offset_pending + page_size, total_pending) if total_pending else 0
     start_p = max(1, page_pending - 2)
     end_p = min(last_page_pending, page_pending + 2)
     pending_page_window = list(range(start_p, end_p + 1))
 
-    # History pagination
-    last_page_history = max(1, (total_history + page_size - 1) // page_size) if total_history else 1
-    if page_history > last_page_history:
-        page_history = last_page_history
-    offset_history = (page_history - 1) * page_size
-    history = full_history[offset_history : offset_history + page_size]
     history_start = (offset_history + 1) if total_history else 0
     history_end = min(offset_history + page_size, total_history) if total_history else 0
     start_h = max(1, page_history - 2)

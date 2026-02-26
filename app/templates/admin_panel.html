@@ -95,6 +95,16 @@
     }
     .pill b{ color:var(--text); letter-spacing:.08em; text-transform:uppercase; font-family:var(--mono); font-size:12px; font-weight:700; }
 
+    .pill.pillGreen{
+      border-color: rgba(24,243,163,.55);
+      background: rgba(24,243,163,.14);
+      color: var(--text);
+    }
+    .pill.pillGreen:hover{
+      border-color: rgba(24,243,163,.75);
+      background: rgba(24,243,163,.20);
+    }
+
     /* Sections */
     .section{
       margin-top:18px;
@@ -414,7 +424,7 @@
         </div>
       </div>
       <div class="spacer"></div>
-      <a href="{{ url_for('viewer') }}" class="pill" style="text-decoration:none;color:inherit;">Viewer</a>
+      <a href="{{ url_for('viewer') }}" class="pill pillGreen" style="text-decoration:none;">Viewer</a>
       <a href="{{ url_for('admin_login') }}" class="pill" style="text-decoration:none;color:inherit;">Logout</a>
       <div class="pill"><span>ROLE</span> <b>ADMIN</b></div>
     </div>
@@ -708,9 +718,16 @@
       var histBody = document.getElementById('historyBody');
       if (histBtn && histBody) {
         histBtn.addEventListener('click', function(){
-          var visible = histBody.style.display !== 'none';
-          histBody.style.display = visible ? 'none' : 'block';
-          histBtn.textContent = visible ? 'View Past Decisions' : 'Hide Past Decisions';
+          // Reload with history_open=1 so backend only loads history when needed
+          var url = new URL(window.location.href);
+          var open = url.searchParams.get('history_open') === '1';
+          if (open) {
+            url.searchParams.delete('history_open');
+          } else {
+            url.searchParams.set('history_open', '1');
+          }
+          url.hash = 'contentReview';
+          window.location.href = url.toString();
         });
 
         function setHistoryOpenBeforeSubmit() {
