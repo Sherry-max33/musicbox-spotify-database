@@ -28,8 +28,7 @@ import os
 import re
 import uuid
 import pandas as pd
-import psycopg2
-from psycopg2.extras import execute_values
+import psycopg
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -39,7 +38,8 @@ DB = dict(
     port=int(os.getenv("DB_PORT") or 5432),
     dbname=os.getenv("DB_NAME") or "musicbox",
     user=os.getenv("DB_USER") or os.getenv("USER"),
-    password=os.getenv("DB_PASSWORD") or None,  
+    password=os.getenv("DB_PASSWORD") or None,
+    sslmode=os.getenv("DB_SSLMODE") or None,
 )
 
 CSV_PATH = os.path.join("data", "spotify_top_10000.csv")
@@ -252,7 +252,7 @@ def main():
     do_print_columns = args.print_columns
 
     if do_verify:
-        conn = psycopg2.connect(**DB)
+        conn = psycopg.connect(**DB)
         cur = conn.cursor()
         cur.execute("""
             SELECT
@@ -565,7 +565,7 @@ def main():
     # -----------------------
     # LOAD TO POSTGRES
     # -----------------------
-    conn = psycopg2.connect(**DB)
+    conn = psycopg.connect(**DB)
     conn.autocommit = False
     cur = conn.cursor()
 
@@ -582,17 +582,13 @@ def main():
                 if img is None or pd.isna(img) or str(img).strip().lower() in ("nan", "none"):
                     img = None
                 album_rows.append((r["album_id"], r["album_name"], rd, img, "approved"))
-            execute_values(
-                cur,
-                "INSERT INTO albums (album_id, album_name, release_date, album_image_url, status) VALUES %s ",
+            cur.executemany(
+                "INSERT INTO albums (album_id, album_name, release_date, album_image_url, status) VALUES (%s, %s, %s, %s, %s)",
                 album_rows,
-                page_size=2000
             )
-            execute_values(
-                cur,
-                "INSERT INTO album_tracks (album_id, track_id, disc_number, track_number) VALUES %s ",
+            cur.executemany(
+                "INSERT INTO album_tracks (album_id, track_id, disc_number, track_number) VALUES (%s, %s, %s, %s)",
                 list(album_tracks.itertuples(index=False, name=None)),
-                page_size=5000
             )
             conn.commit()
             print("✅ Albums-only reload completed.")
@@ -602,12 +598,10 @@ def main():
             return
 
         # artists
-        execute_values(
-            cur,
-            "INSERT INTO artists (artist_id, artist_name, status) VALUES %s "
+        cur.executemany(
+            "INSERT INTO artists (artist_id, artist_name, status) VALUES (%s, %s, %s) "
             "ON CONFLICT (artist_id) DO UPDATE SET artist_name=EXCLUDED.artist_name",
             [(a, n, "approved") for a, n in artists.itertuples(index=False, name=None)],
-            page_size=2000
         )
 
         # albums (robust NaT/"NaT" -> None)
@@ -623,12 +617,12 @@ def main():
 
             album_rows.append((r["album_id"], r["album_name"], rd, img, "approved"))
 
-        execute_values(
-            cur,
-            "INSERT INTO albums (album_id, album_name, release_date, album_image_url, status) VALUES %s "
-            "ON CONFLICT (album_id) DO UPDATE SET album_name=EXCLUDED.album_name, release_date=EXCLUDED.release_date, album_image_url=EXCLUDED.album_image_url",
+        cur.executemany(
+            "INSERT INTO albums (album_id, album_name, release_date, album_image_url, status) "
+            "VALUES (%s, %s, %s, %s, %s) "
+            "ON CONFLICT (album_id) DO UPDATE SET album_name=EXCLUDED.album_name, "
+            "release_date=EXCLUDED.release_date, album_image_url=EXCLUDED.album_image_url",
             album_rows,
-            page_size=2000
         )
 
         # tracks
@@ -649,38 +643,33 @@ def main():
                 added_val = s or None
             track_rows.append((r["track_id"], r["track_name"], pop, dur, exp, prv, "approved", added_val))
 
-        execute_values(
-            cur,
-            "INSERT INTO tracks (track_id, track_name, popularity, duration_ms, explicit, preview_url, status, added_at) VALUES %s "
-            "ON CONFLICT (track_id) DO UPDATE SET track_name=EXCLUDED.track_name, added_at=COALESCE(EXCLUDED.added_at, tracks.added_at)",
+        cur.executemany(
+            "INSERT INTO tracks (track_id, track_name, popularity, duration_ms, explicit, preview_url, status, added_at) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s) "
+            "ON CONFLICT (track_id) DO UPDATE SET track_name=EXCLUDED.track_name, "
+            "added_at=COALESCE(EXCLUDED.added_at, tracks.added_at)",
             track_rows,
-            page_size=2000
         )
 
         # track_artist
-        execute_values(
-            cur,
-            "INSERT INTO track_artist (track_id, artist_id) VALUES %s ON CONFLICT DO NOTHING",
+        cur.executemany(
+            "INSERT INTO track_artist (track_id, artist_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
             list(track_artist.itertuples(index=False, name=None)),
-            page_size=5000
         )
 
         # album_tracks
-        execute_values(
-            cur,
-            "INSERT INTO album_tracks (album_id, track_id, disc_number, track_number) VALUES %s ON CONFLICT DO NOTHING",
+        cur.executemany(
+            "INSERT INTO album_tracks (album_id, track_id, disc_number, track_number) "
+            "VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING",
             list(album_tracks.itertuples(index=False, name=None)),
-            page_size=5000
         )
 
         # artist_genres: truncate then insert to avoid stale mapping (e.g. previously misclassified Electronic)
         cur.execute("TRUNCATE TABLE artist_genres")
         if len(artist_genres) > 0:
-            execute_values(
-                cur,
-                "INSERT INTO artist_genres (artist_id, genre_name) VALUES %s ON CONFLICT DO NOTHING",
+            cur.executemany(
+                "INSERT INTO artist_genres (artist_id, genre_name) VALUES (%s, %s) ON CONFLICT DO NOTHING",
                 list(artist_genres.itertuples(index=False, name=None)),
-                page_size=5000
             )
 
         # artist_primary_genre: one primary genre per artist from highest-popularity track (aligned with song/album)
@@ -689,24 +678,28 @@ def main():
         )
         cur.execute("TRUNCATE TABLE artist_primary_genre")
         if len(artist_primary_genre) > 0:
-            execute_values(
-                cur,
-                "INSERT INTO artist_primary_genre (artist_id, genre_name) VALUES %s ON CONFLICT (artist_id) DO UPDATE SET genre_name = EXCLUDED.genre_name",
+            cur.executemany(
+                "INSERT INTO artist_primary_genre (artist_id, genre_name) VALUES (%s, %s) "
+                "ON CONFLICT (artist_id) DO UPDATE SET genre_name = EXCLUDED.genre_name",
                 list(artist_primary_genre.itertuples(index=False, name=None)),
-                page_size=5000
             )
 
         # track_genres: create table if needed, truncate, then insert; one primary Big-8 per track from first genre in CSV
         if len(track_genres) > 0:
+            # Table is created in schema.sql with PRIMARY KEY (track_id, genre_name);
+            # here we just ensure it exists, then truncate and reinsert.
             cur.execute(
-                "CREATE TABLE IF NOT EXISTS track_genres (track_id VARCHAR(64) PRIMARY KEY REFERENCES tracks(track_id) ON DELETE CASCADE, genre_name VARCHAR(120) NOT NULL)"
+                "CREATE TABLE IF NOT EXISTS track_genres ("
+                "  track_id VARCHAR(64) NOT NULL REFERENCES tracks(track_id) ON DELETE CASCADE,"
+                "  genre_name VARCHAR(120) NOT NULL,"
+                "  PRIMARY KEY (track_id, genre_name)"
+                ")"
             )
             cur.execute("TRUNCATE TABLE track_genres")
-            execute_values(
-                cur,
-                "INSERT INTO track_genres (track_id, genre_name) VALUES %s ON CONFLICT (track_id) DO UPDATE SET genre_name = EXCLUDED.genre_name",
+            cur.executemany(
+                "INSERT INTO track_genres (track_id, genre_name) VALUES (%s, %s) "
+                "ON CONFLICT (track_id, genre_name) DO NOTHING",
                 list(track_genres.itertuples(index=False, name=None)),
-                page_size=5000
             )
 
         # audio_features (FINAL SAFETY: build python-native rows, prevent smallint overflow)
@@ -729,13 +722,12 @@ def main():
                     safe_smallint(r.get("time_signature"), minv=0, maxv=16),
                 ))
 
-            execute_values(
-                cur,
+            cur.executemany(
                 "INSERT INTO audio_features (track_id, danceability, energy, valence, acousticness, instrumentalness, "
-                "liveness, speechiness, tempo, key, mode, loudness, time_signature) VALUES %s "
+                "liveness, speechiness, tempo, key, mode, loudness, time_signature) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
                 "ON CONFLICT (track_id) DO NOTHING",
                 audio_rows,
-                page_size=3000
             )
 
         conn.commit()

@@ -31,7 +31,7 @@ Viewer sorting/ranking logic for /viewer (Song / Artist / Album Top Chart):
 import os
 import uuid
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
-import psycopg2
+import psycopg
 from dotenv import load_dotenv
 import requests
 
@@ -49,12 +49,18 @@ load_dotenv()
 # DB connection
 # =========================
 def get_conn():
-    return psycopg2.connect(
+    # Prefer a single DATABASE_URL if present (Render / Supabase style),
+    # otherwise fall back to individual DB_* pieces (local / custom).
+    url = os.getenv("DATABASE_URL")
+    if url:
+        return psycopg.connect(url)
+    return psycopg.connect(
         host=os.getenv("DB_HOST") or "localhost",
         port=int(os.getenv("DB_PORT") or 5432),
         dbname=os.getenv("DB_NAME") or "musicbox",
         user=os.getenv("DB_USER") or os.getenv("USER"),
         password=os.getenv("DB_PASSWORD") or None,
+        sslmode=os.getenv("DB_SSLMODE") or None,
     )
 
 app = Flask(__name__)
