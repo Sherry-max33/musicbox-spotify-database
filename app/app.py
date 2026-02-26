@@ -20,7 +20,7 @@ Viewer sorting/ranking logic for /viewer (Song / Artist / Album Top Chart):
   - Sort: album score DESC NULLS LAST, top 10.
 
 - EXPLORE BY GENRES (lower part of /viewer)
-  - Songs/albums/artists filtered by "primary" genre, aligned with ETL: songs/albums use track_genres (first genre in CSV mapped to Big-7); artists use artist_primary_genre (primary genre of that artist's highest-popularity track that has track_genres).
+  - Songs/albums/artists filtered by "primary" genre, aligned with ETL: songs/albums use track_genres (first genre in CSV mapped to Big-8); artists use artist_primary_genre (primary genre of that artist's highest-popularity track that has track_genres).
   - API: GET /viewer/api/genre_chart?genre=Pop&decade=all&type=songs|artists|albums; same logic as above; genre filter: track_genres for songs/albums, artist_primary_genre for artists; returns top 5 only.
   - Frontend keeps current layout; requests API by selected genre, decade, and Songs/Artists/Albums and renders grid.
 
@@ -60,7 +60,7 @@ def get_conn():
 app = Flask(__name__)
 app.secret_key = "dev-secret"
 
-# Big-7 categories (same as your ETL grouping output)
+# Big-8 categories (same as ETL GENRE_GROUPS; includes Country)
 BIG7 = ["Pop", "Rock", "Hip-Hop", "R&B", "Jazz", "Classical", "Electronic", "Country"]
 
 # Tabs for Trend chart (mock)

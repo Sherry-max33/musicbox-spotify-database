@@ -1,6 +1,8 @@
 # Track-level release date coverage comparison
 
-## 1. CSV row-level (source data, one track per row)
+This doc describes release date coverage at CSV vs DB level. The ETL **uses regex-based normalization** (`normalize_release_date_str` in `etl_load.py`) before parsing: strip quotes, normalize dashes/slashes, keep only digits and hyphen. So more rows become parseable than raw `pd.to_datetime` on the CSV column; the numbers in section 1 are **without** that normalization (raw CSV); section 2 reflects the current ETL output **with** normalization.
+
+## 1. CSV row-level (source data, one track per row) — *raw, no ETL normalization*
 
 | Metric | Value |
 |--------|--------|
@@ -10,21 +12,21 @@
 | **Missing rate** | **87.40%** |
 | Valid rate | 12.60% |
 
-Note: "Valid" here means `pd.to_datetime(..., errors="coerce")` parses to a non-NaT value. Only about 2 rows (0.02%) are literally NaN/empty in the raw data; most rows become NaT after parsing, likely due to format or dtype.
+Note: "Valid" here means raw `pd.to_datetime(..., errors="coerce")` on the CSV column parses to non-NaT. Many rows fail due to quotes, dashes, or format. **After ETL’s regex normalization**, more rows parse (see `normalize_release_date_str` in `etl_load.py`).
 
 ---
 
-## 2. DB track-level (release_date via album)
+## 2. DB track-level (release_date via album) — *current DB after latest ETL*
 
 | Metric | Value |
 |--------|--------|
 | Total tracks | 9,952 |
-| Tracks whose album has release_date | 8,653 |
-| Tracks whose album has no release_date | 1,299 |
-| **Missing rate** | **13.05%** |
-| Valid rate | 86.95% |
+| Tracks whose album has release_date | 9,948 |
+| Tracks whose album has no release_date | 4 |
+| **Missing rate** | **~0.04%** |
+| Valid rate | ~99.96% |
 
-Note: Tracks do not have a release_date column; "track has release date" is determined via album_tracks → albums.release_date.
+Note: Tracks do not have a release_date column; "track has release date" is determined via album_tracks → albums.release_date. Only 3 albums have NULL release_date, affecting 4 tracks total.
 
 ---
 
@@ -32,10 +34,10 @@ Note: Tracks do not have a release_date column; "track has release date" is dete
 
 | Level | Missing rate | Valid rate |
 |-------|--------------|------------|
-| CSV row-level (parseable as date) | 87.40% | 12.60% |
-| DB track-level (album has release_date) | 13.05% | 86.95% |
+| CSV row-level (parseable as date, raw) | 87.40% | 12.60% |
+| DB track-level (after latest ETL) | **~0.04%** | **~99.96%** |
 
-Conclusion: After ETL, grouping by album and keeping one row per album with a date (when available) raises **track-level** release date coverage (via album) from ~12.6% to **86.95%** and reduces the missing rate from 87.4% to 13.05%.
+Conclusion: After ETL (including **regex normalization** of the date column, then grouping by album and keeping one row per album with a date when available), **track-level** release date coverage goes from ~12.6% (raw CSV) to **~99.96%** (current DB). Missing rate drops from 87.4% to **~0.04%** (4 tracks on 3 NULL albums).
 
 ---
 
@@ -51,11 +53,11 @@ JOIN albums al ON al.album_id = at.album_id
 WHERE al.release_date IS NULL;
 ```
 
-Result: **1,299** tracks lie on albums with release_date NULL.
+Result: **4** tracks lie on albums with release_date NULL (3 albums). Missing rate ≈ 0.04%.
 
 **2) Do those NULL albums have "at least one row with a date" in the source?**
 
-- In Python, using the same logic as ETL: group by `album_id_norm` and consider an album as having a date if at least one row has `Album Release Date` parseable as a date.
-- If the CSV column has leading/trailing quotes (e.g. `'2009'`, `'2003-01-14'`), raw `pd.to_datetime` yields NaT; only ~1,260 rows parse at row level, corresponding to ~971 albums with a date.
-- ETL already: (1) builds `release_date` from parsed `_rd`, avoiding double-parsing of year-only values; (2) strips leading/trailing quotes on the date column before parsing (e.g. `.str.strip().str.strip("'\"")`).
-- Conclusion: Of the ~1,012 NULL albums, most have **no** parseable date row in the source (or the column is quote-wrapped and parsing fails). Only ~41 can be considered "strictly all empty" in the source. If more rows become parseable after stripping quotes in the CSV, re-running ETL would lower the NULL rate further.
+- In Python, using the same logic as ETL: group by `album_id_norm` and consider an album as having a date if at least one row has `Album Release Date` parseable after **the same regex normalization** (`normalize_release_date_str` → `parse_release_date_to_year`).
+- **After regex normalization**, the current ETL achieves ~99.96% track-level coverage (only 4 tracks on 3 albums without a date). Earlier runs or raw-CSV comparisons showed higher NULL counts; the numbers in section 1 (87% missing) are for **raw** CSV parsing without normalization.
+- ETL: (1) uses `normalize_release_date_str()` (regex) then `parse_release_date_to_year()`; (2) builds `release_date` from parsed `_rd`; (3) one row per album, keeping a row with a date when available.
+- Conclusion: With the current pipeline, only 3 albums (4 tracks) have no release_date. If you improve normalization or fix more formats, re-running ETL could reduce this further.

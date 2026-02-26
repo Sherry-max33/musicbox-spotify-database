@@ -74,13 +74,13 @@ CREATE TABLE artist_genres (
   PRIMARY KEY (artist_id, genre_name)
 );
 
--- One row per artist: primary Big-7 genre = primary genre of that artist's highest-popularity track that has track_genres (aligned with song/album)
+-- One row per artist: primary Big-8 genre = primary genre of that artist's highest-popularity track that has track_genres (aligned with song/album)
 CREATE TABLE artist_primary_genre (
   artist_id VARCHAR(64) PRIMARY KEY REFERENCES artists(artist_id) ON DELETE CASCADE,
   genre_name VARCHAR(120) NOT NULL
 );
 
--- Multiple rows per track: one track can have multiple Big-7 genres (multi-select on edit page)
+-- Multiple rows per track: one track can have multiple Big-8 genres (multi-select on edit page)
 CREATE TABLE track_genres (
   track_id VARCHAR(64) NOT NULL REFERENCES tracks(track_id) ON DELETE CASCADE,
   genre_name VARCHAR(120) NOT NULL,

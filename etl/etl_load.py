@@ -2,10 +2,10 @@
 """
 ETL: Load Spotify (and similar) data into the musicbox database.
 
-Genre mapping (Big-7)
+Genre mapping (Big-8)
 --------------------
-Fine genres from the source are mapped to 7 main categories and written to artist_genres (fine genres are kept).
-Viewer's EXPLORE BY GENRES filters by these 7 categories.
+Fine genres from the source are mapped to 8 main categories (Big-8) and written to artist_genres (fine genres are kept).
+Viewer's EXPLORE BY GENRES filters by these 8 categories.
 
 - Matching: for each fine-genre string (strip + lower), if it "contains" any keyword of a category, assign that category.
 - Priority: GENRE_GROUPS dict order; first match wins (Country → Pop → Rock → …).
@@ -18,8 +18,8 @@ Viewer's EXPLORE BY GENRES filters by these 7 categories.
 
 Primary genre for songs/albums/artists (track_genres + artist_primary_genre)
 ----------------------------------------------------------------------------
-- Songs/albums: only the "first" genre in the CSV track genre list is mapped to Big-7 and written to track_genres (one row per track). Viewer EXPLORE BY GENRES uses this.
-- Artists: same as song/album—one primary Big-7 per artist: primary genre of that artist's "highest popularity" track that has track_genres, written to artist_primary_genre (one row per artist). Viewer EXPLORE BY GENRES artist tab uses this.
+- Songs/albums: only the "first" genre in the CSV track genre list is mapped to Big-8 and written to track_genres (one row per track). Viewer EXPLORE BY GENRES uses this.
+- Artists: same as song/album—one primary Big-8 per artist: primary genre of that artist's "highest popularity" track that has track_genres, written to artist_primary_genre (one row per artist). Viewer EXPLORE BY GENRES artist tab uses this.
 - Example: "dance pop, pop, urban contemporary, r&b" → take only "dance pop" → Pop; that track/artist under that track appears only under Pop.
 - artist_genres is still written (all fine genres mapped) for Analyst etc.; EXPLORE BY GENRES artist filter uses artist_primary_genre.
 """
@@ -210,7 +210,7 @@ def safe_smallint(x, minv=None, maxv=None):
     return v
 
 
-# ---------- genre grouping (7 big categories) ----------
+# ---------- genre grouping (Big-8) ----------
 # Rule: fine-genre string containing any keyword of a category assigns that category; order = priority. Country first so "country pop" etc. map to Country.
 GENRE_GROUPS = {
     "Country": ["country"],
@@ -478,7 +478,7 @@ def main():
     )
 
     # -----------------------
-    # TRACK_GENRES (one primary Big-7 per track: first genre in CSV for that track; used for song/album primary genre)
+    # TRACK_GENRES (one primary Big-8 per track: first genre in CSV for that track; used for song/album primary genre)
     # -----------------------
     track_genres_rows = []
     if c_genres:
@@ -500,7 +500,7 @@ def main():
     )
 
     # -----------------------
-    # ARTIST_PRIMARY_GENRE (one Big-7 per artist: primary genre of that artist's highest-popularity track that has track_genres; aligned with song/album)
+    # ARTIST_PRIMARY_GENRE (one Big-8 per artist: primary genre of that artist's highest-popularity track that has track_genres; aligned with song/album)
     # -----------------------
     if len(track_genres) > 0 and len(track_artist) > 0 and "popularity" in tracks.columns:
         apg = track_artist.merge(track_genres, on="track_id").merge(
@@ -696,7 +696,7 @@ def main():
                 page_size=5000
             )
 
-        # track_genres: create table if needed, truncate, then insert; one primary Big-7 per track from first genre in CSV
+        # track_genres: create table if needed, truncate, then insert; one primary Big-8 per track from first genre in CSV
         if len(track_genres) > 0:
             cur.execute(
                 "CREATE TABLE IF NOT EXISTS track_genres (track_id VARCHAR(64) PRIMARY KEY REFERENCES tracks(track_id) ON DELETE CASCADE, genre_name VARCHAR(120) NOT NULL)"
