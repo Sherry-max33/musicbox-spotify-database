@@ -51,7 +51,7 @@
     <div class="card" style="padding:18px;">
       <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap;">
         <div class="cover" style="width:92px; height:92px; border-radius:22px;">
-          {# 用 banner 第 1 张专辑封面当 artist 代表图；没有就空 #}
+            {# Use first banner album cover as artist avatar; empty if none #}
           {% if banner_albums and banner_albums|length > 0 and banner_albums[0][2] %}
             <img src="{{ banner_albums[0][2] }}" alt="artist cover">
           {% endif %}

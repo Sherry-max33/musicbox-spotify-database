@@ -298,7 +298,7 @@
 
 <body>
   <div class="wrap">
-    <!-- Top bar (右侧链接已删除) -->
+    <!-- Top bar -->
     <div class="topbar">
       <div class="logo">
         <a href="{{ url_for('admin_login') }}" style="text-decoration:none;">
@@ -382,7 +382,7 @@
                   {% endif %}
                 </div>
               </td>
-              <td class="preview-cell">{% if r[3] %}<button type="button" class="play preview-play" data-src="{{ r[3] }}" aria-label="播放">▶</button>{% else %}-{% endif %}</td>
+              <td class="preview-cell">{% if r[3] %}<button type="button" class="play preview-play" data-src="{{ r[3] }}" aria-label="Play">▶</button>{% else %}-{% endif %}</td>
             </tr>
             {% endfor %}
             {% endif %}
@@ -418,8 +418,8 @@
                 <button type="button"
                         class="play open-btn artist-open-btn"
                         data-url="{{ url_for('artist') }}?artist_id={{ r[3] }}"
-                        aria-label="打开艺人"
-                        title="打开艺人">↗</button>
+                        aria-label="Open artist"
+                        title="Open artist">↗</button>
               </td>
             </tr>
             {% endfor %}
@@ -448,8 +448,8 @@
                 <button type="button"
                         class="play open-btn album-open-btn"
                         data-url="{{ url_for('album') }}?album_id={{ r[0] }}"
-                        aria-label="打开专辑"
-                        title="打开专辑">↗</button>
+                        aria-label="Open album"
+                        title="Open album">↗</button>
               </td>
             </tr>
             {% endfor %}
@@ -472,7 +472,7 @@
             {% endfor %}
           </div>
 
-          <!-- Right: Decade + type tabs (无 Apply 按钮) -->
+          <!-- Right: Decade + type tabs -->
           <div class="exploreMain">
             <div class="exploreControls">
               <div style="display:flex;align-items:center;gap:8px;margin-right:auto">

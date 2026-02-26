@@ -1,32 +1,32 @@
 # app/app.py
 """
-Viewer 各表排序/排名逻辑（/viewer 的 Song / Artist / Album Top Chart）：
+Viewer sorting/ranking logic for /viewer (Song / Artist / Album Top Chart):
 
 - Song Top Chart
-  - 筛选：t.status = 'approved'，且按专辑 release_date 做 decade 筛选（可选）。
-  - 去重：DISTINCT ON (t.track_id)，每首歌只保留一行（多专辑/多艺人时取 popularity 最高的一行）。
-  - 排序：按 popularity DESC NULLS LAST，取前 50 条（前端只展示前 10）。
+  - Filter: t.status = 'approved', with optional decade filter by album release_date.
+  - Dedupe: DISTINCT ON (t.track_id); one row per track (when multiple albums/artists, keep row with highest popularity).
+  - Sort: popularity DESC NULLS LAST, top 50 (frontend shows top 10).
 
 - Artist Top Chart
-  - 筛选：与 Song 一致，按专辑 release_date 做 decade 筛选。
-  - 热度：同一首歌在不同专辑出现多次则算多次（不去重），按艺人 SUM(popularity) 得到 score。
-  - 每人 TOP TRACK：该艺人在筛选集合内 popularity 最高的那一首（ROW_NUMBER() rn=1）。
-  - 排序：按 score（SUM(popularity)）DESC NULLS LAST，取前 10。
+  - Filter: same as Song; decade filter by album release_date.
+  - Score: same track in multiple albums counts multiple times (no dedupe); score = SUM(popularity) per artist.
+  - Per-artist TOP TRACK: that artist's track with highest popularity in the filtered set (ROW_NUMBER() rn=1).
+  - Sort: score DESC NULLS LAST, top 10.
 
 - Album Top Chart
-  - 筛选：与 Song 一致，t.status = 'approved' 且按专辑 release_date 做 decade 筛选。
-  - 热度：专辑热度 = 专辑内所有歌曲的热度之和（每首歌只计一次，SUM(t.popularity) 按专辑聚合）。
-  - 专辑艺人：取该专辑内总热度最高的艺人（避免 MIN(artist_name) 按字母序误显示 feat. 艺人）。
-  - 排序：按专辑热度 DESC NULLS LAST，取前 10。
+  - Filter: same as Song; t.status = 'approved', decade by album release_date.
+  - Score: album score = sum of popularity of all tracks in album (each track counted once; SUM(t.popularity) per album).
+  - Album artist: artist with highest total popularity in that album (avoids MIN(artist_name) showing feat. artist by alphabet).
+  - Sort: album score DESC NULLS LAST, top 10.
 
-- EXPLORE BY GENRES（/viewer 下半部分）
-  - 歌曲/专辑/艺人 均按「最主流」genre 筛选，与 ETL 一致：歌曲/专辑用 track_genres（CSV 该 track 的 genre 列表第一个映射到 Big-7），艺人用 artist_primary_genre（该艺人热度最高且存在 track_genres 的曲目的 primary genre）。
-  - API：GET /viewer/api/genre_chart?genre=Pop&decade=all&type=songs|artists|albums，逻辑与上述 Song/Artist/Album 一致，genre 筛选：songs/albums 用 track_genres，artists 用 artist_primary_genre；只返回 top 5。
-  - 前端保持现有排版，按所选 genre、decade、Songs/Artists/Albums 请求 API 并渲染 grid。
+- EXPLORE BY GENRES (lower part of /viewer)
+  - Songs/albums/artists filtered by "primary" genre, aligned with ETL: songs/albums use track_genres (first genre in CSV mapped to Big-7); artists use artist_primary_genre (primary genre of that artist's highest-popularity track that has track_genres).
+  - API: GET /viewer/api/genre_chart?genre=Pop&decade=all&type=songs|artists|albums; same logic as above; genre filter: track_genres for songs/albums, artist_primary_genre for artists; returns top 5 only.
+  - Frontend keeps current layout; requests API by selected genre, decade, and Songs/Artists/Albums and renders grid.
 
-- 歌手页 /artist?artist_id=xxx
-  - 与 Viewer Artist 一致：总热度 = SUM(popularity)（该艺人所有曲目，同一首歌在不同专辑出现多次则算多次）；Rank = 全库艺人按该 SUM 降序排名。
-  - 右上角：第一行显示 # {rank}，第二行显示 Popularity {total_popularity}。TOP TRACKS、ALBUMS 由后端查询渲染。
+- Artist page /artist?artist_id=xxx
+  - Same as Viewer Artist: total popularity = SUM(popularity) (all tracks for that artist; same track in multiple albums counted multiple times). Rank = full DB artists ordered by that SUM descending.
+  - Top-right: first line shows # {rank}, second line Popularity {total_popularity}. TOP TRACKS and ALBUMS are queried and rendered by backend.
 """
 import os
 import uuid
@@ -82,12 +82,12 @@ def fetchone_dict(cur, columns):
     return {columns[i]: row[i] for i in range(len(columns))}
 
 
-# 歌手页 hero 背景：按专辑图人脸位置计算 background-position（缓存按 URL）
+# Artist page hero background: compute background-position from face position in album art (cached by URL)
 _hero_focus_cache = {}
 
 
 def get_face_focus(image_url, timeout=4):
-    """根据专辑图检测人脸，返回 CSS background-position 百分比，使人脸落在视区内。无脸或失败返回 None。"""
+    """Detect face in album image and return CSS background-position percentages so the face stays in view. Returns None if no face or on failure."""
     if not _FACE_DETECT_AVAILABLE or not image_url or not image_url.startswith("http"):
         return None
     if image_url in _hero_focus_cache:
@@ -112,7 +112,7 @@ def get_face_focus(image_url, timeout=4):
         x, y, w, h = max(faces, key=lambda r: r[2] * r[3])
         cx = (x + w / 2) / img.shape[1]
         cy = (y + h / 2) / img.shape[0]
-        # 使人脸中心对应到视区相对位置，便于统一裁切
+        # Map face center to viewport relative position for consistent cropping
         out = f"{cx*100:.1f}% {cy*100:.1f}%"
         _hero_focus_cache[image_url] = out
         return out
@@ -273,7 +273,7 @@ def viewer():
                 rows = cur.fetchall()
 
     elif chart == "artist":
-        # 与 Song Top Chart 一致：按专辑 release_date 做 decade 筛选。同一首歌在不同专辑出现多次则算多次热度（不去重）
+        # Same as Song Top Chart: decade filter by album release_date; same track in multiple albums counts multiple times (no dedupe)
         artist_sql = """
         WITH decade_tracks AS (
           SELECT t.track_id, t.track_name, t.preview_url, t.popularity, ar.artist_id, ar.artist_name
@@ -318,7 +318,7 @@ def viewer():
                 rows = cur.fetchall()
 
     elif chart == "album":
-        # 专辑热度 = 专辑内所有歌曲热度之和（每首歌只计一次）；专辑艺人取该专辑内总热度最高的艺人
+        # Album score = sum of track popularity in album (each track once); album artist = artist with highest total popularity in that album
         album_sql = """
         WITH album_total AS (
           SELECT a.album_id, a.album_name, a.album_image_url,
@@ -637,7 +637,7 @@ def album():
 
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # 基本信息 + 总热度 + 主艺人（专辑内总 popularity 最高的艺人）
+            # Basic info + total popularity + primary artist (artist with highest total popularity in album)
             cur.execute(
                 """
                 WITH album_tracks AS (
@@ -700,7 +700,7 @@ def album():
             album_name, album_image_url, release_date, total_popularity, artist_id, artist_name = row
             release_year = str(release_date)[:4] if release_date else None
 
-            # 专辑内所有曲目（按 track_number 排序，无编号则靠后按曲名）
+            # All tracks in album (ordered by track_number; unnumbered last, then by track name)
             cur.execute(
                 """
                 WITH base AS (
@@ -1014,7 +1014,7 @@ def analyst():
         with conn.cursor() as cur:
             cur.execute(genres_sql, (BIG7,))
             db_genres = [r[0] for r in cur.fetchall()]
-            # 与 viewer 下方顺序一致：按 BIG7 顺序
+            # Same order as viewer lower section: BIG7 order
             genres = [g for g in BIG7 if g in db_genres] if db_genres else list(BIG7)
 
             cur.execute(summary_sql, (BIG7, genre, genre))
@@ -1042,7 +1042,7 @@ def analyst():
                     duration_fmt = "—"
             else:
                 duration_fmt = "—"
-            # 雷达图 6 轴顺序：danceability, energy, valence, acousticness, tempo, loudness；值归一化 0–1
+            # Radar chart 6 axes order: danceability, energy, valence, acousticness, tempo, loudness; values normalized 0–1
             def norm_tempo(v):
                 if v is None:
                     return 0
@@ -1071,7 +1071,7 @@ def analyst():
                 radar_points.append("%.1f,%.1f" % (x, y))
             radar_points_str = " ".join(radar_points)
 
-            # All 作为 benchmark：无 genre 筛选的 summary，浅红显示
+            # "All" as benchmark: summary with no genre filter, shown in light red
             cur.execute(summary_sql, (BIG7, "", ""))
             summary_all = fetchone_dict(cur, summary_cols) or {}
             radar_values_all = [
@@ -1318,6 +1318,8 @@ def admin_login():
         session["admin_role"] = role
         if user_id is not None:
             session["admin_user_id"] = user_id
+        if (role or "").lower() == "admin":
+            return redirect(url_for("admin"))
         return redirect(url_for("admin_gateway"))
     return render_template("admin_login.html")
 
@@ -1348,7 +1350,7 @@ def manage_list():
     if not session.get("admin_email"):
         return redirect(url_for("admin_login"))
     # Ensure we always have admin_user_id in session (for Only my submissions),
-    # even for旧会话在我们增加自动创建用户逻辑之前登录的情况
+    # Also handle legacy sessions that logged in before we added auto-create-user logic
     if "admin_user_id" not in session or session.get("admin_user_id") is None:
         email = session.get("admin_email")
         if email:
@@ -1441,7 +1443,7 @@ def manage_list():
                 cur.execute(count_sql, params)
                 total = cur.fetchone()[0] or 0
 
-                # 如果带 search 没有结果，退回只按过滤器（status/decade/genre等）展示
+                # If search returns no results, fall back to showing by filters only (status/decade/genre etc.)
                 if total == 0 and q:
                     where_sql = " AND ".join(base_where)
                     count_sql = f"""
@@ -2123,7 +2125,7 @@ def artist():
         )
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # 与 viewer Artist 一致：SUM(popularity)，同一首歌在不同专辑出现多次则算多次；全库不按 decade 筛
+            # Same as viewer Artist: SUM(popularity); same track in multiple albums counts multiple times; full DB, no decade filter
             cur.execute(
                 """
                 WITH artist_tracks AS (
@@ -2174,7 +2176,7 @@ def artist():
                 )
             artist_name, total_popularity, rank = row[0], row[1], row[2]
 
-            # Top tracks: 该艺人所有曲目按 popularity 降序，取每曲一行（多专辑则多行，取其一用 DISTINCT ON track_id 取 popularity 最高的一行）
+            # Top tracks: all tracks for this artist by popularity desc, one row per track (multiple albums = multiple rows; use DISTINCT ON track_id to keep highest popularity row)
             cur.execute(
                 """
                 SELECT DISTINCT ON (t.track_id)
@@ -2195,7 +2197,7 @@ def artist():
                 {"artist_id": artist_id},
             )
             track_rows = cur.fetchall()
-            # 按 popularity 降序排，取前 10
+            # Order by popularity desc, take top 10
             tracks = sorted(
                 [
                     {
@@ -2213,7 +2215,7 @@ def artist():
                 reverse=True,
             )[:10]
 
-            # Albums: 该艺人参与过的专辑
+            # Albums: albums this artist appears on
             cur.execute(
                 """
                 SELECT DISTINCT a.album_id, a.album_name, a.release_date, a.album_image_url
@@ -2235,7 +2237,7 @@ def artist():
                 }
                 for r in album_rows
             ]
-            # 按专辑名+年份去重，同一张专辑（同名同年版/豪华版等）只显示一张（保留第一条，已按 release_date DESC）
+            # Dedupe by album name + year; same album (e.g. deluxe/same year) shown once (keep first row; already ordered by release_date DESC)
             seen_key = set()
             albums = []
             for a in albums_raw:
@@ -2244,9 +2246,9 @@ def artist():
                     seen_key.add(key)
                     albums.append(a)
 
-            # 歌手页背景：用最新一张专辑的封面（albums 已按 release_date DESC 排序）
+            # Artist page hero: use latest album cover (albums already ordered by release_date DESC)
             hero_cover = (albums[0]["album_image_url"] if albums else None) or (tracks[0]["album_image_url"] if tracks else None)
-            # 自动人脸检测，使人脸落在 hero 裁切区内；无脸或失败则用默认居中
+            # Auto face detection so face lies in hero crop; fallback to centered if none or failure
             hero_focus = get_face_focus(hero_cover) if hero_cover else None
 
     return render_template(

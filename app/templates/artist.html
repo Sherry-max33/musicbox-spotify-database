@@ -281,7 +281,7 @@
     .card .meta .t{font-weight:1000}
     .card .meta .a{color:var(--muted); margin-top:6px; font-size:13px}
 
-    /* See more：与返回钮同配色，长方形 */
+    /* See more: same colors as back button, rectangular */
     .albums-seemore-btn{
       background:rgba(0,245,160,.12);
       border:1px solid rgba(0,245,160,.45);
@@ -440,7 +440,7 @@ var HAS_ARTIST_DATA = {{ 'true' if (artist_name and (tracks or [])) else 'false'
 const $ = (s)=>document.querySelector(s);
 const $$ = (s)=>Array.from(document.querySelectorAll(s));
 
-// Preview 播放（与 viewer 一致）
+// Preview playback (same as viewer)
 var previewAudio = document.getElementById("previewAudio");
 if (previewAudio) {
   function setAllPlayIcons() { $$(".preview-play").forEach(function(btn){ btn.textContent = "▶"; }); }
@@ -519,7 +519,7 @@ if (!HAS_ARTIST_DATA) {
   $("#artistName").textContent = artist.name;
   if ($("#heroBg")) $("#heroBg").style.backgroundImage = "url('" + artist.heroCover + "')";
   var popEl = $("#artistPopText");
-  if (popEl) popEl.textContent = "— (无 artist_id 时为 mock)";
+  if (popEl) popEl.textContent = "— (mock when no artist_id)";
   $("#tracksBody").innerHTML = artist.topTracks.map(t => `
     <tr class="row"><td class="rank">#${t.rank}</td><td><div class="cover"><img src="${t.cover}" alt="" loading="lazy"/></div></td>
     <td><div class="main">${t.track}</div><div class="sub">${artist.name}</div></td>

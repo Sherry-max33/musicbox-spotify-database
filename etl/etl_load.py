@@ -1,27 +1,27 @@
 # etl/etl_load.py
 """
-ETL: 将 Spotify 等数据导入 musicbox 库。
+ETL: Load Spotify (and similar) data into the musicbox database.
 
-Genre 分类映射规则（Big-7）
----------------------------
-数据源中的艺人细分类（fine genre）会映射到 7 个大类，写入 artist_genres 表（同时保留细分类）。
-Viewer 的「EXPLORE BY GENRES」按这 7 类筛选。
+Genre mapping (Big-7)
+--------------------
+Fine genres from the source are mapped to 7 main categories and written to artist_genres (fine genres are kept).
+Viewer's EXPLORE BY GENRES filters by these 7 categories.
 
-- 匹配方式：对每个细分类字符串做 strip + lower，若其「包含」某类的任一关键词，则归入该类。
-- 优先级：按 GENRE_GROUPS 字典顺序，先匹配到的类优先（Country → Pop → Rock → …）。
-- 特例：
-  - "hiphop"（无连字符）单独判为 Hip-Hop。
-  - Electronic：不含 "edm"、泛 "house"，避免流行/舞曲艺人误入电音；若细分类为 tropical / dance pop / pop dance / edm，即使命中 Electronic 关键词也不归入 Electronic。
+- Matching: for each fine-genre string (strip + lower), if it "contains" any keyword of a category, assign that category.
+- Priority: GENRE_GROUPS dict order; first match wins (Country → Pop → Rock → …).
+- Exceptions:
+  - "hiphop" (no hyphen) is treated as Hip-Hop.
+  - Electronic: exclude "edm" and generic "house" to avoid pop/dance artists being classified as electronic; if fine genre is tropical / dance pop / pop dance / edm, do not assign Electronic even if other keywords match.
 
-8 类及关键词（详见下方 GENRE_GROUPS）：
-  Country, Pop, Rock, Hip-Hop, R&B, Jazz, Classical, Electronic。
+8 categories and keywords (see GENRE_GROUPS below):
+  Country, Pop, Rock, Hip-Hop, R&B, Jazz, Classical, Electronic.
 
-歌曲/专辑/艺人的「最主流」genre（track_genres + artist_primary_genre）
----------------------------------------------------------------------
-- 歌曲/专辑：只取 CSV 中该 track 的 genre 列表的「第一个」项映射到 Big-7，写入 track_genres（每 track 一行）。Viewer 的 EXPLORE BY GENRES 按此筛选。
-- 艺人：与 song/album 一致，也只归入一个最主流 Big-7：取该艺人「热度最高」且存在 track_genres 的曲目的 primary genre，写入 artist_primary_genre（每艺人一行）。Viewer 的 EXPLORE BY GENRES 艺人 tab 按此筛选。
-- 例如 "dance pop, pop, urban contemporary, r&b" → 只取 "dance pop" → Pop，该曲/该艺人在该曲下的主 genre 只在 Pop 下出现。
-- artist_genres 仍写入（explode 全部细分类映射），供 Analyst 等使用；EXPLORE BY GENRES 的艺人筛选用 artist_primary_genre。
+Primary genre for songs/albums/artists (track_genres + artist_primary_genre)
+----------------------------------------------------------------------------
+- Songs/albums: only the "first" genre in the CSV track genre list is mapped to Big-7 and written to track_genres (one row per track). Viewer EXPLORE BY GENRES uses this.
+- Artists: same as song/album—one primary Big-7 per artist: primary genre of that artist's "highest popularity" track that has track_genres, written to artist_primary_genre (one row per artist). Viewer EXPLORE BY GENRES artist tab uses this.
+- Example: "dance pop, pop, urban contemporary, r&b" → take only "dance pop" → Pop; that track/artist under that track appears only under Pop.
+- artist_genres is still written (all fine genres mapped) for Analyst etc.; EXPLORE BY GENRES artist filter uses artist_primary_genre.
 """
 import argparse
 import os
@@ -126,32 +126,32 @@ def split_multi(val):
 
 
 def normalize_release_date_str(x):
-    """将格式不统一的 release date 字符串规范为可解析形式：去引号、去/统一 dash、只保留数字与标准分隔符，便于解析后统一取年份。"""
+    """Normalize inconsistent release date strings for parsing: strip quotes, normalize/remove dashes, keep only digits and standard separators; then parse and take year."""
     if pd.isna(x):
         return ""
     s = str(x).strip()
-    # 去掉首尾引号、反引号
+    # Strip leading/trailing quotes and backticks
     s = re.sub(r"^['\"`\s]+|['\"`\s]+$", "", s)
     if not s or s.lower() in ("nan", "none", "nat", ""):
         return ""
-    # 统一/去掉 dash：Unicode 横线、en-dash、em-dash 等替换为普通 hyphen，或去掉（仅保留数字时再解析）
+    # Normalize dashes: Unicode hyphen, en-dash, em-dash etc. to hyphen or remove (parse year from digits only if needed)
     s = re.sub(r"[\u2010-\u2015\u2212\uff0d\-–—]", "-", s)
-    # 去掉多余空格
+    # Remove extra spaces
     s = re.sub(r"\s+", "", s)
-    # 斜杠统一为 hyphen（如 2003/01/14）
+    # Slash to hyphen (e.g. 2003/01/14)
     s = s.replace("/", "-")
-    # 只保留数字和 hyphen，避免混入其它字符导致解析失败
+    # Keep only digits and hyphen to avoid parse failures
     s = re.sub(r"[^\d\-]", "", s)
     return s
 
 
 def parse_release_date_to_year(s: str):
-    """解析 release date 字符串，返回 (year, date) 或 (None, None)。统一为年份后存 date(year, 1, 1)。"""
+    """Parse release date string; return (year, date) or (None, None). Store as date(year, 1, 1) after normalizing to year."""
     s = normalize_release_date_str(s)
     if not s:
         return None, None
     try:
-        # 支持 2009、2003-01-14、20030114 等
+        # Support 2009, 2003-01-14, 20030114, etc.
         if re.match(r"^\d{4}$", s):
             y = int(s)
             if 1900 <= y <= 2100:
@@ -211,7 +211,7 @@ def safe_smallint(x, minv=None, maxv=None):
 
 
 # ---------- genre grouping (7 big categories) ----------
-# 规则：细分类字符串包含某类任一关键词即归入该类；顺序即优先级。Country 放前，使 "country pop" 等归入 Country。
+# Rule: fine-genre string containing any keyword of a category assigns that category; order = priority. Country first so "country pop" etc. map to Country.
 GENRE_GROUPS = {
     "Country": ["country"],
     "Pop": ["pop", "k-pop", "kpop", "j-pop", "jpop", "dance pop", "electropop", "indie pop", "teen pop"],
@@ -220,7 +220,7 @@ GENRE_GROUPS = {
     "R&B": ["r&b", "rnb", "rhythm and blues", "soul", "neo soul", "funk"],
     "Jazz": ["jazz", "bebop", "swing", "smooth jazz", "bossa nova", "blues"],
     "Classical": ["classical", "orchestra", "orchestral", "symphony", "baroque", "romantic", "opera", "chamber"],
-    # 不含 "edm"：数据源里很多流行艺人被标 edm，会误入电音；不含 "house" 泛匹配，避免 tropical house / dance pop 等进电音
+    # Exclude "edm": many pop artists are labeled edm in source and would be misclassified as electronic; exclude generic "house" to avoid tropical house / dance pop etc.
     "Electronic": ["electronic", "techno", "trance", "dubstep", "drum and bass", "dnb", "ambient", "synthwave", "electro", "electro house", "filter house", "progressive house"],
 }
 
@@ -232,7 +232,7 @@ def map_genre_to_group(genre: str):
     for group, kws in GENRE_GROUPS.items():
         for kw in kws:
             if kw in g:
-                # 避免 tropical house / dance 等把流行艺人归入 Electronic
+                # Avoid tropical house / dance etc. putting pop artists in Electronic
                 if group == "Electronic" and ("tropical" in g or g in ("dance pop", "pop dance", "edm")):
                     continue
                 return group
@@ -296,9 +296,9 @@ def main():
     c_artist_id = find_col(df, "artist_id")  # artist_uri_s
     c_album_id = find_col(df, "album_id")
 
-    # Optional: release_date 映射链
-    # 原表 CSV 列 "Album Release Date" -> 重命名为 "album_release_date" -> find_col 得到 c_release_date
-    # -> albums_cols 含 c_release_date -> 重命名为 "release_date" -> DB albums.release_date
+    # Optional: release_date mapping chain
+    # Source CSV column "Album Release Date" -> renamed to "album_release_date" -> find_col yields c_release_date
+    # -> albums_cols includes c_release_date -> renamed to "release_date" -> DB albums.release_date
     c_release_date = find_col(df, "release_date")
     c_popularity = find_col(df, "popularity")
     c_duration_ms = find_col(df, "duration_ms")
@@ -375,10 +375,10 @@ def main():
     if c_album_image:
         albums_cols.append(c_album_image)
 
-    # 按专辑只保留一行：同一专辑多行时优先保留 release_date 非空的那行（先按专辑再按日期排序，空值排最后）
+    # One row per album: when multiple rows per album, keep row with non-null release_date (sort by album then date, nulls last)
     _albums_df = df[albums_cols].copy()
     if c_release_date:
-        # 正则规范化：去引号、统一/去掉 dash，解析后统一为年份（存 date(year, 1, 1)）
+        # Normalize via regex: strip quotes, normalize/remove dash; after parse store as date(year, 1, 1)
         _albums_df["_rd"] = _albums_df[c_release_date].apply(
             lambda x: parse_release_date_to_year(x)[1]
         )
@@ -478,7 +478,7 @@ def main():
     )
 
     # -----------------------
-    # TRACK_GENRES (每 track 仅一个 Big-7：取 CSV 中该 track 的 genre 列表「第一个」映射，用于歌曲/专辑最主流 genre)
+    # TRACK_GENRES (one primary Big-7 per track: first genre in CSV for that track; used for song/album primary genre)
     # -----------------------
     track_genres_rows = []
     if c_genres:
@@ -500,7 +500,7 @@ def main():
     )
 
     # -----------------------
-    # ARTIST_PRIMARY_GENRE（每艺人仅一个 Big-7：取该艺人「热度最高」且存在 track_genres 的曲目的 primary genre，与 song/album 一致）
+    # ARTIST_PRIMARY_GENRE (one Big-7 per artist: primary genre of that artist's highest-popularity track that has track_genres; aligned with song/album)
     # -----------------------
     if len(track_genres) > 0 and len(track_artist) > 0 and "popularity" in tracks.columns:
         apg = track_artist.merge(track_genres, on="track_id").merge(
@@ -537,20 +537,20 @@ def main():
             audio_features[c] = None
 
     if do_print_columns:
-        print("=== ETL 之后各表列名 ===\n")
-        print("【release_date 映射】")
-        print("  原表列名: 'Album Release Date' (CSV 带空格)")
-        print("  -> 重命名: df['album_release_date']")
-        print("  -> find_col('release_date') 得到: c_release_date =", repr(c_release_date))
-        print("  -> albums 表列名: 'release_date'")
-        print("  -> 入库: albums.release_date -> DB albums.release_date")
+        print("=== Column names after ETL ===\n")
+        print("[release_date mapping]")
+        print("  Source column: 'Album Release Date' (CSV with spaces)")
+        print("  -> Renamed: df['album_release_date']")
+        print("  -> find_col('release_date') yields: c_release_date =", repr(c_release_date))
+        print("  -> albums table column: 'release_date'")
+        print("  -> DB: albums.release_date -> DB albums.release_date")
         non_null = albums["release_date"].notna().sum() if "release_date" in albums.columns else 0
-        print("  样本: albums.release_date 非空行数 =", non_null, "/", len(albums))
+        print("  Sample: albums.release_date non-null count =", non_null, "/", len(albums))
         if "release_date" in albums.columns and non_null > 0:
             sample = albums["release_date"].dropna().head(5).tolist()
-            print("  前 5 个非空值:", sample)
+            print("  First 5 non-null values:", sample)
         print()
-        print("df (原始 CSV 处理后):", list(df.columns))
+        print("df (after CSV processing):", list(df.columns))
         print("artists:", list(artists.columns))
         print("albums:", list(albums.columns))
         print("tracks:", list(tracks.columns))
@@ -673,7 +673,7 @@ def main():
             page_size=5000
         )
 
-        # artist_genres（先清空再写入，避免旧映射残留，如曾误标 Electronic 的艺人）
+        # artist_genres: truncate then insert to avoid stale mapping (e.g. previously misclassified Electronic)
         cur.execute("TRUNCATE TABLE artist_genres")
         if len(artist_genres) > 0:
             execute_values(
@@ -683,7 +683,7 @@ def main():
                 page_size=5000
             )
 
-        # artist_primary_genre（艺人也用最主流 genre：取该艺人热度最高曲目的 primary genre，与 song/album 一致）
+        # artist_primary_genre: one primary genre per artist from highest-popularity track (aligned with song/album)
         cur.execute(
             "CREATE TABLE IF NOT EXISTS artist_primary_genre (artist_id VARCHAR(64) PRIMARY KEY REFERENCES artists(artist_id) ON DELETE CASCADE, genre_name VARCHAR(120) NOT NULL)"
         )
@@ -696,7 +696,7 @@ def main():
                 page_size=5000
             )
 
-        # track_genres（先建表再清空再写入；one primary Big-7 per track, from first genre in CSV）
+        # track_genres: create table if needed, truncate, then insert; one primary Big-7 per track from first genre in CSV
         if len(track_genres) > 0:
             cur.execute(
                 "CREATE TABLE IF NOT EXISTS track_genres (track_id VARCHAR(64) PRIMARY KEY REFERENCES tracks(track_id) ON DELETE CASCADE, genre_name VARCHAR(120) NOT NULL)"

@@ -563,7 +563,7 @@
           <input type="hidden" name="history_open" id="historyOpenHistory" value="{{ '1' if show_history else '' }}" />
           <input class="input searchSmall" name="q_history" value="{{ q_history }}" placeholder="Item" autocomplete="off" />
           <button type="submit" class="btn">Search</button>
-          <a href="{{ url_for('admin', q_pending=q_pending or '', q_history='', page_pending=page_pending, page_history=1, history_open='1' if show_history else '', _anchor='contentReview') }}" class="btn btnNeutral" style="text-decoration:none;">Clear</a>
+          <a href="{{ url_for('admin', q_pending=q_pending or '', q_history='', page_pending=page_pending, page_history=1, history_open='1', _anchor='contentReview') }}" class="btn btnNeutral" style="text-decoration:none;">Clear</a>
         </form>
         <div class="reviewGridHeader">
           <div>Item</div>
@@ -579,11 +579,11 @@
         <div class="reviewRow">
           <div>
             {% if item.type == 'track' %}
-            <a href="{{ url_for('analyst_edit', track_id=item.id, review='1', history_open='1' if show_history else '') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
+            <a href="{{ url_for('analyst_edit', track_id=item.id, review='1', history_open='1') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
             {% elif item.type == 'artist' %}
-            <a href="{{ url_for('analyst_edit_artist', artist_id=item.id, review='1', history_open='1' if show_history else '') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
+            <a href="{{ url_for('analyst_edit_artist', artist_id=item.id, review='1', history_open='1') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
             {% elif item.type == 'album' %}
-            <a href="{{ url_for('analyst_edit_album', album_id=item.id, review='1', history_open='1' if show_history else '') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
+            <a href="{{ url_for('analyst_edit_album', album_id=item.id, review='1', history_open='1') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
             {% else %}
             {{ item.title }}
             {% endif %}
@@ -602,11 +602,11 @@
               <button type="submit" class="btn secondary">Undo</button>
             </form>
             {% if item.type == 'track' %}
-            <a href="{{ url_for('analyst_edit', track_id=item.id, review='1', history_open='1' if show_history else '') }}" class="btn openLink" style="text-decoration:none;">Details</a>
+            <a href="{{ url_for('analyst_edit', track_id=item.id, review='1', history_open='1') }}" class="btn openLink" style="text-decoration:none;">Details</a>
             {% elif item.type == 'artist' %}
-            <a href="{{ url_for('analyst_edit_artist', artist_id=item.id, review='1', history_open='1' if show_history else '') }}" class="btn openLink" style="text-decoration:none;">Details</a>
+            <a href="{{ url_for('analyst_edit_artist', artist_id=item.id, review='1', history_open='1') }}" class="btn openLink" style="text-decoration:none;">Details</a>
             {% elif item.type == 'album' %}
-            <a href="{{ url_for('analyst_edit_album', album_id=item.id, review='1', history_open='1' if show_history else '') }}" class="btn openLink" style="text-decoration:none;">Details</a>
+            <a href="{{ url_for('analyst_edit_album', album_id=item.id, review='1', history_open='1') }}" class="btn openLink" style="text-decoration:none;">Details</a>
             {% endif %}
           </div>
         </div>
@@ -623,13 +623,13 @@
           </div>
           <div class="page-links" style="display:flex;gap:6px;align-items:center;font-family:var(--mono);font-size:12px;">
             {% if page_history > 1 %}
-            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history - 1, history_open='1' if show_history else '', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Prev</a>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history - 1, history_open='1', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Prev</a>
             {% endif %}
             {% for p in history_page_window %}
-            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=p, history_open='1' if show_history else '', _anchor='contentReview') }}" class="btn btnNeutral{% if p == page_history %} btnAccent{% endif %}" style="min-width:0;padding:6px 10px;">{{ p }}</a>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=p, history_open='1', _anchor='contentReview') }}" class="btn btnNeutral{% if p == page_history %} btnAccent{% endif %}" style="min-width:0;padding:6px 10px;">{{ p }}</a>
             {% endfor %}
             {% if page_history < history_last_page %}
-            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history + 1, history_open='1' if show_history else '', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Next</a>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history + 1, history_open='1', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Next</a>
             {% endif %}
           </div>
         </div>
@@ -639,7 +639,7 @@
   </div>
   <script>
     (function(){
-      // 禁用浏览器原生滚动恢复，避免与自定义逻辑冲突
+      // Disable browser scroll restoration to avoid conflict with custom logic
       if ('scrollRestoration' in history) {
         history.scrollRestoration = 'manual';
       }
@@ -650,19 +650,19 @@
         } catch (e) {}
       }
 
-      // 所有可能触发跳转的点击行为，统一记录滚动位置
+      // Record scroll position on any click that may trigger navigation
       document.addEventListener('click', function(e){
         if (e.target.closest('button, a.btn, a.openLink, .pill')) {
           saveScroll();
         }
       });
 
-      // 表单提交也记录
+      // Also record on form submit
       document.addEventListener('submit', function(){
         saveScroll();
       });
 
-      // 页面加载后，使用 requestAnimationFrame 尽早、平滑地恢复滚动
+      // After load, restore scroll early and smoothly via requestAnimationFrame
       (function restoreOnLoad(){
         var savedY = null;
         try {
@@ -687,7 +687,7 @@
         window.requestAnimationFrame(performScroll);
       })();
 
-      // Create User 行显隐
+      // Create User row show/hide
       var btn = document.getElementById('btnCreateUser');
       var cancelBtn = document.getElementById('btnCancelNewUser');
       var row = document.getElementById('newUserRow');
@@ -702,7 +702,7 @@
         });
       }
 
-      // History 展开/折叠 + 在提交前写入 history_open 隐藏字段
+      // History expand/collapse + write history_open hidden field before form submit
       var histBtn = document.getElementById('btnToggleHistory');
       var histBody = document.getElementById('historyBody');
       if (histBtn && histBody) {
@@ -726,7 +726,7 @@
           }
         });
 
-        // 当 History 当前是展开状态时，点击分页 / Clear 链接自动带上 history_open=1
+        // When History is expanded, ensure pagination/Clear links include history_open=1
         document.querySelectorAll('a.btnNeutral[href*=\"admin\"]').forEach(function(a){
           a.addEventListener('click', function(){
             if (histBody && histBody.style.display !== 'none') {

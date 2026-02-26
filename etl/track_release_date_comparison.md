@@ -1,47 +1,47 @@
-# Track 层面 release date 缺失度对比
+# Track-level release date coverage comparison
 
-## 1. CSV 行级（源数据，每行一条 track）
+## 1. CSV row-level (source data, one track per row)
 
-| 指标 | 数值 |
-|------|------|
-| 总行数 (tracks) | 10,000 |
-| 有 Album Release Date 且能解析为日期的行数 | 1,260 |
-| 缺失/无法解析的行数 | 8,740 |
-| **缺失率** | **87.40%** |
-| 有效率 | 12.60% |
+| Metric | Value |
+|--------|--------|
+| Total rows (tracks) | 10,000 |
+| Rows with Album Release Date parseable as date | 1,260 |
+| Missing / unparseable rows | 8,740 |
+| **Missing rate** | **87.40%** |
+| Valid rate | 12.60% |
 
-说明：此处“有效”指 `pd.to_datetime(..., errors="coerce")` 能解析为非 NaT。原始仅 NaN/空字符串约 2 行（0.02%），但多数行在解析后为 NaT，可能与格式或 dtype 有关。
-
----
-
-## 2. DB Track 层面（通过专辑关联 release_date）
-
-| 指标 | 数值 |
-|------|------|
-| 总 tracks 数 | 9,952 |
-| 其专辑有 release_date 的 tracks 数 | 8,653 |
-| 其专辑无 release_date 的 tracks 数 | 1,299 |
-| **缺失率** | **13.05%** |
-| 有效率 | 86.95% |
-
-说明：track 无单独 release_date 列，通过 album_tracks → albums.release_date 判断“该 track 是否有发行日”。
+Note: "Valid" here means `pd.to_datetime(..., errors="coerce")` parses to a non-NaT value. Only about 2 rows (0.02%) are literally NaN/empty in the raw data; most rows become NaT after parsing, likely due to format or dtype.
 
 ---
 
-## 3. 对比小结
+## 2. DB track-level (release_date via album)
 
-| 维度 | 缺失率 | 有效率 |
-|------|--------|--------|
-| CSV 行级（可解析为日期） | 87.40% | 12.60% |
-| DB track 级（其专辑有 release_date） | 13.05% | 86.95% |
+| Metric | Value |
+|--------|--------|
+| Total tracks | 9,952 |
+| Tracks whose album has release_date | 8,653 |
+| Tracks whose album has no release_date | 1,299 |
+| **Missing rate** | **13.05%** |
+| Valid rate | 86.95% |
 
-结论：ETL 后按专辑聚合并优先保留“每个专辑内一条有日期的行”，使 **track 层面**（通过所属专辑）的 release date 覆盖率从约 12.6% 提升到约 **86.95%**，缺失度从 87.4% 降到 13.05%。
+Note: Tracks do not have a release_date column; "track has release date" is determined via album_tracks → albums.release_date.
 
 ---
 
-## 4. NULL 专辑与源数据验证
+## 3. Summary
 
-**1）NULL 专辑关联的 track 数（DB）：**
+| Level | Missing rate | Valid rate |
+|-------|--------------|------------|
+| CSV row-level (parseable as date) | 87.40% | 12.60% |
+| DB track-level (album has release_date) | 13.05% | 86.95% |
+
+Conclusion: After ETL, grouping by album and keeping one row per album with a date (when available) raises **track-level** release date coverage (via album) from ~12.6% to **86.95%** and reduces the missing rate from 87.4% to 13.05%.
+
+---
+
+## 4. NULL albums and source data validation
+
+**1) Number of tracks on NULL-album (DB):**
 
 ```sql
 SELECT COUNT(DISTINCT t.track_id) AS tracks_on_null_albums
@@ -51,11 +51,11 @@ JOIN albums al ON al.album_id = at.album_id
 WHERE al.release_date IS NULL;
 ```
 
-结果：**1,299** 条 track 落在 release_date 为 NULL 的专辑上。
+Result: **1,299** tracks lie on albums with release_date NULL.
 
-**2）这些 NULL 专辑在源数据里是否“有任意一行有日期”：**
+**2) Do those NULL albums have "at least one row with a date" in the source?**
 
-- 在 Python 里用与 ETL 相同逻辑：按 `album_id_norm` 聚合并用「至少一行 `Album Release Date` 可解析为日期」判断。
-- 若 CSV 中该列带首尾引号（如 `'2009'`、`'2003-01-14'`），直接 `pd.to_datetime` 会得到 NaT，行级仅约 1,260 行可解析，对应约 971 张专辑有日期。
-- ETL 已做：① 用已解析的 `_rd` 生成 `release_date`，不再对「仅年份」等值二次解析；② 解析前对日期列做 `.str.strip().str.strip("'\"")` 去掉首尾引号。
-- 结论：当前约 1,012 张 NULL 专辑中，绝大多数在源数据里**没有**可解析的日期行（或整列被引号包裹导致解析失败）；仅约 41 张在「严格全为空」意义下可视为源里就无日期。若 CSV 去引号后能解析更多行，重跑 ETL 后 NULL 率会再降。
+- In Python, using the same logic as ETL: group by `album_id_norm` and consider an album as having a date if at least one row has `Album Release Date` parseable as a date.
+- If the CSV column has leading/trailing quotes (e.g. `'2009'`, `'2003-01-14'`), raw `pd.to_datetime` yields NaT; only ~1,260 rows parse at row level, corresponding to ~971 albums with a date.
+- ETL already: (1) builds `release_date` from parsed `_rd`, avoiding double-parsing of year-only values; (2) strips leading/trailing quotes on the date column before parsing (e.g. `.str.strip().str.strip("'\"")`).
+- Conclusion: Of the ~1,012 NULL albums, most have **no** parseable date row in the source (or the column is quote-wrapped and parsing fails). Only ~41 can be considered "strictly all empty" in the source. If more rows become parseable after stripping quotes in the CSV, re-running ETL would lower the NULL rate further.

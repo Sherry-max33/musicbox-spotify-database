@@ -400,7 +400,7 @@
             </div>
           </div>
 
-          <!-- Relations：Artist / Album 可搜索 -->
+          <!-- Relations: Artist / Album searchable -->
           <div class="section">
             <h3>Relations</h3>
             <div class="grid">
@@ -434,7 +434,7 @@
             </div>
           </div>
 
-          <!-- Genre (多选) -->
+          <!-- Genre (multi-select) -->
           <div class="section">
             <h3>Track Genre</h3>
             <div class="grid">
@@ -717,7 +717,7 @@
   </div>
 
   <script>
-    // Artist / Album 搜索
+    // Artist / Album search
     (function(){
       var artistUrl = "{{ url_for('analyst_edit_search_artists') }}";
       var albumUrl = "{{ url_for('analyst_edit_search_albums') }}";
@@ -796,7 +796,7 @@
       });
     })();
 
-    // 多选：点击 pill 后手动切换 checkbox + active 样式（兼容不同模式：track / artist）
+    // Multi-select: on pill click toggle checkbox + active style (works for track / artist modes)
     document.querySelectorAll('#genrePills .pill-radio').forEach(function(lab){
       lab.addEventListener('click', function(e){
         var cb = lab.querySelector('input[type=\"checkbox\"]');
@@ -806,7 +806,7 @@
         lab.classList.toggle('active', cb.checked);
       });
     });
-    // Delete: confirm then submit with delete=1（支持 track / album / artist）
+    // Delete: confirm then submit with delete=1 (supports track / album / artist)
     var delBtn = document.querySelector('.footer .btn.danger');
     if (delBtn) {
       delBtn.addEventListener('click', function(){

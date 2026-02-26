@@ -74,13 +74,13 @@ CREATE TABLE artist_genres (
   PRIMARY KEY (artist_id, genre_name)
 );
 
--- 每 artist 仅一行：该艺人「最主流」Big-7，取该艺人热度最高且存在 track_genres 的那首曲目的 primary genre，与 song/album 一致
+-- One row per artist: primary Big-7 genre = primary genre of that artist's highest-popularity track that has track_genres (aligned with song/album)
 CREATE TABLE artist_primary_genre (
   artist_id VARCHAR(64) PRIMARY KEY REFERENCES artists(artist_id) ON DELETE CASCADE,
   genre_name VARCHAR(120) NOT NULL
 );
 
--- 每 track 可多行：一首歌可对应多个 Big-7 genre（edit 页多选）
+-- Multiple rows per track: one track can have multiple Big-7 genres (multi-select on edit page)
 CREATE TABLE track_genres (
   track_id VARCHAR(64) NOT NULL REFERENCES tracks(track_id) ON DELETE CASCADE,
   genre_name VARCHAR(120) NOT NULL,
