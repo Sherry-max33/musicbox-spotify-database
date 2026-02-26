@@ -1826,22 +1826,28 @@ def _admin_pending_fetch(cur, q=None, limit=20, offset=0):
     cur.execute(
         f"""
         WITH pending AS (
-          SELECT 'track'::text AS type, t.track_id AS id, t.track_name AS title, u.email AS submitted_by
+          SELECT 'track'::text AS type, t.track_id AS id, t.track_name AS title,
+                 (SELECT string_agg(ar.artist_name, ', ' ORDER BY ar.artist_name) FROM track_artist ta JOIN artists ar ON ar.artist_id = ta.artist_id WHERE ta.track_id = t.track_id) AS artist,
+                 u.email AS submitted_by
           FROM tracks t
           LEFT JOIN users u ON u.user_id = t.submitted_by
           WHERE t.status = 'pending'{cond_track}
           UNION ALL
-          SELECT 'album'::text AS type, a.album_id AS id, a.album_name AS title, u.email AS submitted_by
+          SELECT 'album'::text AS type, a.album_id AS id, a.album_name AS title,
+                 (SELECT string_agg(sub.artist_name, ', ' ORDER BY sub.artist_name) FROM (SELECT DISTINCT ar.artist_name FROM album_tracks at JOIN track_artist ta ON at.track_id = ta.track_id JOIN artists ar ON ar.artist_id = ta.artist_id WHERE at.album_id = a.album_id) AS sub(artist_name)) AS artist,
+                 u.email AS submitted_by
           FROM albums a
           LEFT JOIN users u ON u.user_id = a.submitted_by
           WHERE a.status = 'pending'{cond_album}
           UNION ALL
-          SELECT 'artist'::text AS type, ar.artist_id AS id, ar.artist_name AS title, u.email AS submitted_by
+          SELECT 'artist'::text AS type, ar.artist_id AS id, ar.artist_name AS title,
+                 NULL::text AS artist,
+                 u.email AS submitted_by
           FROM artists ar
           LEFT JOIN users u ON u.user_id = ar.submitted_by
           WHERE ar.status = 'pending'{cond_artist}
         )
-        SELECT type, id, title, submitted_by
+        SELECT type, id, title, artist, submitted_by
         FROM pending
         ORDER BY type, id
         LIMIT %s OFFSET %s;
@@ -1854,7 +1860,8 @@ def _admin_pending_fetch(cur, q=None, limit=20, offset=0):
             "type": r[0],
             "id": r[1],
             "title": (r[2] or ""),
-            "submitted_by": r[3] or "—",
+            "artist": (r[3] or "").strip() or "—",
+            "submitted_by": r[4] or "—",
             "reviewed_by": "—",
             "processed_at": "—",
         }
@@ -1862,8 +1869,9 @@ def _admin_pending_fetch(cur, q=None, limit=20, offset=0):
     ]
 
 
-def _admin_history_count(cur, q=None, type_filter="all"):
+def _admin_history_count(cur, q=None, q_artist=None, type_filter="all"):
     q = (q or "").strip()
+    q_artist = (q_artist or "").strip()
     params = []
     cond_track = ""
     cond_album = ""
@@ -1874,6 +1882,12 @@ def _admin_history_count(cur, q=None, type_filter="all"):
         cond_album = " AND a.album_name ILIKE %s"
         cond_artist = " AND ar.artist_name ILIKE %s"
         params.extend([like, like, like])
+    if q_artist:
+        like_artist = "%" + q_artist + "%"
+        cond_track += " AND EXISTS (SELECT 1 FROM track_artist ta JOIN artists ar2 ON ar2.artist_id = ta.artist_id WHERE ta.track_id = t.track_id AND ar2.artist_name ILIKE %s)"
+        cond_album += " AND EXISTS (SELECT 1 FROM album_tracks at JOIN track_artist ta ON at.track_id = ta.track_id JOIN artists ar2 ON ar2.artist_id = ta.artist_id WHERE at.album_id = a.album_id AND ar2.artist_name ILIKE %s)"
+        cond_artist += " AND ar.artist_name ILIKE %s"
+        params.extend([like_artist, like_artist, like_artist])
     type_filter = (type_filter or "all").lower()
     include_tracks = type_filter in ("all", "track", "tracks")
     include_albums = type_filter in ("all", "album", "albums")
@@ -1928,8 +1942,9 @@ def _admin_history_count(cur, q=None, type_filter="all"):
         return int(row[0] or 0) if row else 0
 
 
-def _admin_history_fetch(cur, q=None, limit=20, offset=0, type_filter="all"):
+def _admin_history_fetch(cur, q=None, q_artist=None, limit=20, offset=0, type_filter="all"):
     q = (q or "").strip()
+    q_artist = (q_artist or "").strip()
     params = []
     cond_track = ""
     cond_album = ""
@@ -1940,6 +1955,12 @@ def _admin_history_fetch(cur, q=None, limit=20, offset=0, type_filter="all"):
         cond_album = " AND a.album_name ILIKE %s"
         cond_artist = " AND ar.artist_name ILIKE %s"
         params.extend([like, like, like])
+    if q_artist:
+        like_artist = "%" + q_artist + "%"
+        cond_track += " AND EXISTS (SELECT 1 FROM track_artist ta JOIN artists ar2 ON ar2.artist_id = ta.artist_id WHERE ta.track_id = t.track_id AND ar2.artist_name ILIKE %s)"
+        cond_album += " AND EXISTS (SELECT 1 FROM album_tracks at JOIN track_artist ta ON at.track_id = ta.track_id JOIN artists ar2 ON ar2.artist_id = ta.artist_id WHERE at.album_id = a.album_id AND ar2.artist_name ILIKE %s)"
+        cond_artist += " AND ar.artist_name ILIKE %s"
+        params.extend([like_artist, like_artist, like_artist])
     type_filter = (type_filter or "all").lower()
     include_tracks = type_filter in ("all", "track", "tracks")
     include_albums = type_filter in ("all", "album", "albums")
@@ -1951,28 +1972,34 @@ def _admin_history_fetch(cur, q=None, limit=20, offset=0, type_filter="all"):
         cur.execute(
             f"""
             WITH hist AS (
-              SELECT 'track'::text AS type, t.track_id AS id, t.track_name AS title, t.status,
+              SELECT 'track'::text AS type, t.track_id AS id, t.track_name AS title,
+                     (SELECT string_agg(ar.artist_name, ', ' ORDER BY ar.artist_name) FROM track_artist ta JOIN artists ar ON ar.artist_id = ta.artist_id WHERE ta.track_id = t.track_id) AS artist,
+                     t.status,
                      u.email AS submitted_by, ru.email AS reviewed_by, t.reviewed_at AS processed_at
               FROM tracks t
               LEFT JOIN users u ON u.user_id = t.submitted_by
               LEFT JOIN users ru ON ru.user_id = t.reviewed_by
               WHERE t.status IN ('approved','rejected'){cond_track}{extra_track}
               UNION ALL
-              SELECT 'album'::text AS type, a.album_id AS id, a.album_name AS title, a.status,
+              SELECT 'album'::text AS type, a.album_id AS id, a.album_name AS title,
+                     (SELECT string_agg(sub.artist_name, ', ' ORDER BY sub.artist_name) FROM (SELECT DISTINCT ar.artist_name FROM album_tracks at JOIN track_artist ta ON at.track_id = ta.track_id JOIN artists ar ON ar.artist_id = ta.artist_id WHERE at.album_id = a.album_id) AS sub(artist_name)) AS artist,
+                     a.status,
                      u.email AS submitted_by, ru.email AS reviewed_by, a.reviewed_at AS processed_at
               FROM albums a
               LEFT JOIN users u ON u.user_id = a.submitted_by
               LEFT JOIN users ru ON ru.user_id = a.reviewed_by
               WHERE a.status IN ('approved','rejected'){cond_album}{extra_album}
               UNION ALL
-              SELECT 'artist'::text AS type, ar.artist_id AS id, ar.artist_name AS title, ar.status,
+              SELECT 'artist'::text AS type, ar.artist_id AS id, ar.artist_name AS title,
+                     NULL::text AS artist,
+                     ar.status,
                      u.email AS submitted_by, ru.email AS reviewed_by, ar.reviewed_at AS processed_at
               FROM artists ar
               LEFT JOIN users u ON u.user_id = ar.submitted_by
               LEFT JOIN users ru ON ru.user_id = ar.reviewed_by
               WHERE ar.status IN ('approved','rejected'){cond_artist}{extra_artist}
             )
-            SELECT type, id, title, status, submitted_by, reviewed_by, processed_at
+            SELECT type, id, title, artist, status, submitted_by, reviewed_by, processed_at
             FROM hist
             ORDER BY processed_at DESC NULLS LAST, CASE type WHEN 'track' THEN 1 WHEN 'album' THEN 2 WHEN 'artist' THEN 3 END, id
             LIMIT %s OFFSET %s;
@@ -1984,25 +2011,31 @@ def _admin_history_fetch(cur, q=None, limit=20, offset=0, type_filter="all"):
         cur.execute(
             f"""
             WITH hist AS (
-              SELECT 'track'::text AS type, t.track_id AS id, t.track_name AS title, t.status,
+              SELECT 'track'::text AS type, t.track_id AS id, t.track_name AS title,
+                     (SELECT string_agg(ar.artist_name, ', ' ORDER BY ar.artist_name) FROM track_artist ta JOIN artists ar ON ar.artist_id = ta.artist_id WHERE ta.track_id = t.track_id) AS artist,
+                     t.status,
                      u.email AS submitted_by, NULL::text AS reviewed_by, t.added_at AS processed_at
               FROM tracks t
               LEFT JOIN users u ON u.user_id = t.submitted_by
               WHERE t.status IN ('approved','rejected'){cond_track}{extra_track}
               UNION ALL
-              SELECT 'album'::text AS type, a.album_id AS id, a.album_name AS title, a.status,
+              SELECT 'album'::text AS type, a.album_id AS id, a.album_name AS title,
+                     (SELECT string_agg(sub.artist_name, ', ' ORDER BY sub.artist_name) FROM (SELECT DISTINCT ar.artist_name FROM album_tracks at JOIN track_artist ta ON at.track_id = ta.track_id JOIN artists ar ON ar.artist_id = ta.artist_id WHERE at.album_id = a.album_id) AS sub(artist_name)) AS artist,
+                     a.status,
                      u.email AS submitted_by, NULL::text AS reviewed_by, a.added_at AS processed_at
               FROM albums a
               LEFT JOIN users u ON u.user_id = a.submitted_by
               WHERE a.status IN ('approved','rejected'){cond_album}{extra_album}
               UNION ALL
-              SELECT 'artist'::text AS type, ar.artist_id AS id, ar.artist_name AS title, ar.status,
+              SELECT 'artist'::text AS type, ar.artist_id AS id, ar.artist_name AS title,
+                     NULL::text AS artist,
+                     ar.status,
                      u.email AS submitted_by, NULL::text AS reviewed_by, ar.added_at AS processed_at
               FROM artists ar
               LEFT JOIN users u ON u.user_id = ar.submitted_by
               WHERE ar.status IN ('approved','rejected'){cond_artist}{extra_artist}
             )
-            SELECT type, id, title, status, submitted_by, reviewed_by, processed_at
+            SELECT type, id, title, artist, status, submitted_by, reviewed_by, processed_at
             FROM hist
             ORDER BY processed_at DESC NULLS LAST, CASE type WHEN 'track' THEN 1 WHEN 'album' THEN 2 WHEN 'artist' THEN 3 END, id
             LIMIT %s OFFSET %s;
@@ -2017,10 +2050,11 @@ def _admin_history_fetch(cur, q=None, limit=20, offset=0, type_filter="all"):
                 "type": r[0],
                 "id": r[1],
                 "title": (r[2] or ""),
-                "status": r[3] or "pending",
-                "submitted_by": r[4] or "—",
-                "reviewed_by": r[5] or "—",
-                "processed_at": _format_reviewed_at(r[6]),
+                "artist": (r[3] or "").strip() or "—",
+                "status": r[4] or "pending",
+                "submitted_by": r[5] or "—",
+                "reviewed_by": r[6] or "—",
+                "processed_at": _format_reviewed_at(r[7]),
             }
         )
     return out
@@ -2235,6 +2269,7 @@ def admin():
     history = []
     q_pending = (request.args.get("q_pending") or "").strip()
     q_history = (request.args.get("q_history") or "").strip()
+    q_history_artist = (request.args.get("q_history_artist") or "").strip()
     history_type = (request.args.get("history_type") or "all").strip().lower()
     if history_type not in ("all", "track", "album", "artist"):
         history_type = "all"
@@ -2259,12 +2294,12 @@ def admin():
             pending = _admin_pending_fetch(cur, q=q_pending, limit=page_size, offset=offset_pending)
 
             if show_history:
-                total_history = _admin_history_count(cur, q=q_history, type_filter=history_type)
+                total_history = _admin_history_count(cur, q=q_history, q_artist=q_history_artist or None, type_filter=history_type)
                 last_page_history = max(1, (total_history + page_size - 1) // page_size) if total_history else 1
                 if page_history > last_page_history:
                     page_history = last_page_history
                 offset_history = (page_history - 1) * page_size
-                history = _admin_history_fetch(cur, q=q_history, limit=page_size, offset=offset_history, type_filter=history_type)
+                history = _admin_history_fetch(cur, q=q_history, q_artist=q_history_artist or None, limit=page_size, offset=offset_history, type_filter=history_type)
             else:
                 total_history = 0
                 last_page_history = 1
@@ -2303,6 +2338,7 @@ def admin():
         page_size=page_size,
         q_pending=q_pending,
         q_history=q_history,
+        q_history_artist=q_history_artist,
         show_history=show_history,
         history_type=history_type,
     )

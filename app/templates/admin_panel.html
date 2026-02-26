@@ -259,7 +259,7 @@
     }
     .reviewGridHeader, .reviewRow{
       display:grid;
-      grid-template-columns: 1.5fr minmax(100px, 118px) minmax(180px, 260px) 80px 80px 120px minmax(140px,1fr);
+      grid-template-columns: 1.5fr minmax(120px, 200px) minmax(100px, 118px) minmax(180px, 260px) 80px 80px 120px minmax(140px,1fr);
       gap:10px;
       align-items:center;
       font-family:var(--mono);
@@ -417,7 +417,7 @@
       color: var(--accent);
     }
 
-    .input.searchSmall{ width:140px; max-width:160px; padding:8px 10px; font-size:13px; }
+    .input.searchSmall{ width:140px; max-width:160px; padding:11px 10px; font-size:13px; }
 
     @media (max-width: 980px){
       .gridHeader, .row{ grid-template-columns: 1fr; }
@@ -525,6 +525,7 @@
         </form>
         <div class="reviewGridHeader">
           <div>Item</div>
+          <div>Artist</div>
           <div>Submitted by</div>
           <div>Reviewed by</div>
           <div>Type</div>
@@ -536,6 +537,7 @@
         {% for item in pending %}
         <div class="reviewRow">
           <div>{{ item.title }}</div>
+          <div class="tag" style="color:var(--muted);">{{ item.artist }}</div>
           <div class="tag analyst">{{ item.submitted_by }}</div>
           <div class="tag" style="color:var(--muted2);">{{ item.reviewed_by }}</div>
           <div><span class="tag new">{{ item.type|capitalize }}</span></div>
@@ -595,6 +597,7 @@
           <input type="hidden" name="page_pending" value="{{ page_pending }}" />
           <input type="hidden" name="history_open" id="historyOpenHistory" value="{{ '1' if show_history else '' }}" />
           <input class="input searchSmall" name="q_history" value="{{ q_history }}" placeholder="Item" autocomplete="off" />
+          <input class="input searchSmall" name="q_history_artist" value="{{ q_history_artist }}" placeholder="Artist" autocomplete="off" />
           <div style="display:flex;gap:8px;align-items:center;">
             <select name="history_type" class="select historyTypeSelect" style="min-width:120px;padding-right:32px;">
               <option value="all"{% if history_type == 'all' %} selected{% endif %}>All types</option>
@@ -603,11 +606,12 @@
               <option value="artist"{% if history_type == 'artist' %} selected{% endif %}>Artists</option>
             </select>
             <button type="submit" class="btn">Search</button>
-            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history='', page_pending=page_pending, page_history=1, history_open='1', history_type='all', _anchor='contentReview') }}" class="btn btnNeutral" style="text-decoration:none;">Clear</a>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history='', q_history_artist='', page_pending=page_pending, page_history=1, history_open='1', history_type='all', _anchor='contentReview') }}" class="btn btnNeutral" style="text-decoration:none;">Clear</a>
           </div>
         </form>
         <div class="reviewGridHeader">
           <div>Item</div>
+          <div>Artist</div>
           <div>Submitted by</div>
           <div>Reviewed by</div>
           <div>Type</div>
@@ -629,6 +633,7 @@
             {{ item.title }}
             {% endif %}
           </div>
+          <div class="tag" style="color:var(--muted);">{{ item.artist }}</div>
           <div class="tag analyst">{{ item.submitted_by }}</div>
           <div class="tag reviewedByTag">{{ item.reviewed_by }}</div>
           <div><span class="tag">{{ item.type|capitalize }}</span></div>
@@ -664,13 +669,13 @@
           </div>
           <div class="page-links" style="display:flex;gap:6px;align-items:center;font-family:var(--mono);font-size:12px;">
             {% if page_history > 1 %}
-            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history - 1, history_open='1', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Prev</a>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', q_history_artist=q_history_artist or '', page_pending=page_pending, page_history=page_history - 1, history_open='1', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Prev</a>
             {% endif %}
             {% for p in history_page_window %}
-            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=p, history_open='1', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral{% if p == page_history %} btnAccent{% endif %}" style="min-width:0;padding:6px 10px;">{{ p }}</a>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', q_history_artist=q_history_artist or '', page_pending=page_pending, page_history=p, history_open='1', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral{% if p == page_history %} btnAccent{% endif %}" style="min-width:0;padding:6px 10px;">{{ p }}</a>
             {% endfor %}
             {% if page_history < history_last_page %}
-            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history + 1, history_open='1', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Next</a>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', q_history_artist=q_history_artist or '', page_pending=page_pending, page_history=page_history + 1, history_open='1', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Next</a>
             {% endif %}
           </div>
         </div>
