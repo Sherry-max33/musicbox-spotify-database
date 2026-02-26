@@ -252,14 +252,24 @@
       border-radius:14px;
       padding:10px 12px;
       margin-bottom:12px;
-      display:inline-flex;
+      display:flex;
       flex-wrap:wrap;
       align-items:center;
       gap:8px;
     }
+    .searchRow .input{
+      flex:1 1 180px;
+      min-width:140px;
+    }
+    .searchRow .select{
+      min-width:110px;
+    }
+    .searchRow .btn{
+      flex:0 0 auto;
+    }
     .reviewGridHeader, .reviewRow{
       display:grid;
-      grid-template-columns: 1.5fr 120px 120px 90px 90px 130px minmax(160px,1fr);
+      grid-template-columns: 1.5fr 120px 160px 80px 90px 130px minmax(160px,1fr);
       gap:10px;
       align-items:center;
       font-family:var(--mono);
@@ -522,11 +532,23 @@
           <div class="tag" style="color:var(--muted2);">{{ item.processed_at }}</div>
           <div style="text-align:right;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
             {% if item.type == 'track' %}
-            <a href="{{ url_for('analyst_edit', track_id=item.id, review='1', history_open='1' if show_history else '') }}" class="openLink" style="text-decoration:none;">Open</a>
+            <a href="{{ url_for('analyst_edit', track_id=item.id, review='1',
+                                 history_open='1' if show_history else '',
+                                 q_pending=q_pending or '', q_history=q_history or '',
+                                 page_pending=page_pending, page_history=page_history,
+                                 history_type=history_type or 'all') }}" class="openLink" style="text-decoration:none;">Open</a>
             {% elif item.type == 'artist' %}
-            <a href="{{ url_for('analyst_edit_artist', artist_id=item.id, review='1', history_open='1' if show_history else '') }}" class="openLink" style="text-decoration:none;">Open</a>
+            <a href="{{ url_for('analyst_edit_artist', artist_id=item.id, review='1',
+                                 history_open='1' if show_history else '',
+                                 q_pending=q_pending or '', q_history=q_history or '',
+                                 page_pending=page_pending, page_history=page_history,
+                                 history_type=history_type or 'all') }}" class="openLink" style="text-decoration:none;">Open</a>
             {% elif item.type == 'album' %}
-            <a href="{{ url_for('analyst_edit_album', album_id=item.id, review='1', history_open='1' if show_history else '') }}" class="openLink" style="text-decoration:none;">Open</a>
+            <a href="{{ url_for('analyst_edit_album', album_id=item.id, review='1',
+                                 history_open='1' if show_history else '',
+                                 q_pending=q_pending or '', q_history=q_history or '',
+                                 page_pending=page_pending, page_history=page_history,
+                                 history_type=history_type or 'all') }}" class="openLink" style="text-decoration:none;">Open</a>
             {% endif %}
             <form method="post" action="{{ url_for('admin_review') }}" style="display:inline;">
               <input type="hidden" name="type" value="{{ item.type }}" />
@@ -599,11 +621,20 @@
         <div class="reviewRow">
           <div>
             {% if item.type == 'track' %}
-            <a href="{{ url_for('analyst_edit', track_id=item.id, review='1', history_open='1') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
+            <a href="{{ url_for('analyst_edit', track_id=item.id, review='1', history_open='1',
+                                 q_pending=q_pending or '', q_history=q_history or '',
+                                 page_pending=page_pending, page_history=page_history,
+                                 history_type=history_type or 'all') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
             {% elif item.type == 'artist' %}
-            <a href="{{ url_for('analyst_edit_artist', artist_id=item.id, review='1', history_open='1') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
+            <a href="{{ url_for('analyst_edit_artist', artist_id=item.id, review='1', history_open='1',
+                                 q_pending=q_pending or '', q_history=q_history or '',
+                                 page_pending=page_pending, page_history=page_history,
+                                 history_type=history_type or 'all') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
             {% elif item.type == 'album' %}
-            <a href="{{ url_for('analyst_edit_album', album_id=item.id, review='1', history_open='1') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
+            <a href="{{ url_for('analyst_edit_album', album_id=item.id, review='1', history_open='1',
+                                 q_pending=q_pending or '', q_history=q_history or '',
+                                 page_pending=page_pending, page_history=page_history,
+                                 history_type=history_type or 'all') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
             {% else %}
             {{ item.title }}
             {% endif %}
