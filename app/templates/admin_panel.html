@@ -154,7 +154,7 @@
     /* Table-like form */
     .gridHeader, .row{
       display:grid;
-      grid-template-columns: 1.4fr 220px 200px 110px;
+      grid-template-columns: 1.4fr minmax(180px, 240px) 200px 110px;
       gap:14px;
       align-items:center;
       font-family:var(--mono);
@@ -180,7 +180,7 @@
     }
 
     #newUserRow{
-      grid-template-columns: 1.4fr 220px 200px minmax(200px, 1fr);
+      grid-template-columns: 1.4fr minmax(180px, 240px) 200px minmax(200px, 1fr);
     }
     #newUserRow > div:last-child{
       display:flex;
@@ -259,7 +259,7 @@
     }
     .reviewGridHeader, .reviewRow{
       display:grid;
-      grid-template-columns: 1.5fr 100px minmax(200px, 1.2fr) 80px 80px 120px minmax(140px,1fr);
+      grid-template-columns: 1.5fr minmax(100px, 118px) minmax(180px, 260px) 80px 80px 120px minmax(140px,1fr);
       gap:10px;
       align-items:center;
       font-family:var(--mono);
@@ -274,6 +274,9 @@
       letter-spacing:.14em;
       text-transform:uppercase;
       color:var(--muted2);
+    }
+    .reviewGridHeader > div{
+      white-space:nowrap;
     }
 
     .reviewRow{
