@@ -588,7 +588,16 @@ def viewer_genre_chart():
                     for i, r in enumerate(rows)
                 ]
             else:
-                sql = """
+                decade_condition = (
+                    """
+                    AND a.release_date IS NOT NULL
+                      AND EXTRACT(YEAR FROM a.release_date)
+                          BETWEEN %(decade_start)s AND %(decade_end)s
+                    """
+                    if has_decade_filter
+                    else ""
+                )
+                sql = f"""
                 WITH album_total AS (
                   SELECT a.album_id, a.album_name, a.album_image_url,
                          SUM(t.popularity) AS album_total
@@ -596,11 +605,7 @@ def viewer_genre_chart():
                   JOIN album_tracks at ON at.album_id = a.album_id
                   JOIN tracks t ON t.track_id = at.track_id
                   WHERE t.status = 'approved'
-                    AND (%(decade_start)s IS NULL OR (
-                          a.release_date IS NOT NULL
-                          AND EXTRACT(YEAR FROM a.release_date)
-                              BETWEEN %(decade_start)s AND %(decade_end)s
-                    ))
+                    {decade_condition}
                     AND EXISTS (
                       SELECT 1 FROM album_tracks at2
                       JOIN track_genres tg ON tg.track_id = at2.track_id AND tg.genre_name = %(genre)s
@@ -616,11 +621,7 @@ def viewer_genre_chart():
                   JOIN track_artist ta ON ta.track_id = t.track_id
                   JOIN artists ar ON ar.artist_id = ta.artist_id
                   WHERE t.status = 'approved'
-                    AND (%(decade_start)s IS NULL OR (
-                          a.release_date IS NOT NULL
-                          AND EXTRACT(YEAR FROM a.release_date)
-                              BETWEEN %(decade_start)s AND %(decade_end)s
-                    ))
+                    {decade_condition}
                   GROUP BY a.album_id, ar.artist_id, ar.artist_name
                 ),
                 best_artist AS (
@@ -634,6 +635,9 @@ def viewer_genre_chart():
                 ORDER BY tot.album_total DESC NULLS LAST
                 LIMIT 5;
                 """
+                params = dict(base_params)
+                if has_decade_filter:
+                    params.update({"decade_start": decade_start, "decade_end": decade_end})
                 cur.execute(sql, params)
                 rows = cur.fetchall()
                 items = [
