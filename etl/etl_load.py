@@ -328,6 +328,15 @@ def main():
 
     if c_album_id:
         df["album_id_norm"] = df[c_album_id].apply(normalize_id)
+        # Fallback: if Album URI is missing/empty, synthesize a stable id from album_name + artist_name
+        if c_album_name and c_artist_name:
+            mask = df["album_id_norm"].astype(str).str.strip() == ""
+            if mask.any():
+                df.loc[mask, "album_id_norm"] = (
+                    df.loc[mask, c_album_name].astype(str)
+                    + "||"
+                    + df.loc[mask, c_artist_name].astype(str)
+                ).apply(stable_uuid_from_text)
     else:
         df["album_id_norm"] = (df[c_album_name].astype(str) + "||" + df[c_artist_name].astype(str)).apply(stable_uuid_from_text)
 

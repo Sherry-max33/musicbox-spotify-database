@@ -2596,6 +2596,12 @@ def analyst_edit_artist():
     is_admin = (session.get("admin_role") or "").lower() == "admin"
     review_mode = request.method == "GET" and request.args.get("review") == "1"
     return_history_open = request.args.get("history_open") == "1"
+    return_history_q = request.args.get("history_q", "")
+    try:
+        return_history_page = max(1, int(request.args.get("history_page", "1")))
+    except ValueError:
+        return_history_page = 1
+    return_history_type = (request.args.get("history_type") or "all").strip().lower()
     artist_id = request.args.get("artist_id", "").strip() if request.method == "GET" else request.form.get("artist_id", "").strip()
 
     if request.method == "POST":
@@ -2695,6 +2701,9 @@ def analyst_edit_artist():
         review_mode=review_mode,
         is_admin=is_admin,
         return_history_open=return_history_open,
+        return_history_q=return_history_q,
+        return_history_page=return_history_page,
+        return_history_type=return_history_type,
     )
 
 
@@ -2703,6 +2712,12 @@ def analyst_edit_album():
     is_admin = (session.get("admin_role") or "").lower() == "admin"
     review_mode = request.method == "GET" and request.args.get("review") == "1"
     return_history_open = request.args.get("history_open") == "1"
+    return_history_q = request.args.get("history_q", "")
+    try:
+        return_history_page = max(1, int(request.args.get("history_page", "1")))
+    except ValueError:
+        return_history_page = 1
+    return_history_type = (request.args.get("history_type") or "all").strip().lower()
     album_id = request.args.get("album_id", "").strip() if request.method == "GET" else request.form.get("album_id", "").strip()
 
     if request.method == "POST":
@@ -2845,6 +2860,9 @@ def analyst_edit_album():
         review_mode=review_mode,
         is_admin=is_admin,
         return_history_open=return_history_open,
+        return_history_q=return_history_q,
+        return_history_page=return_history_page,
+        return_history_type=return_history_type,
     )
 
 @app.route("/analyst/edit", methods=["GET", "POST"])
@@ -2852,6 +2870,12 @@ def analyst_edit():
     is_admin = (session.get("admin_role") or "").lower() == "admin"
     review_mode = request.method == "GET" and request.args.get("review") == "1"
     return_history_open = request.args.get("history_open") == "1"
+    return_history_q = request.args.get("history_q", "")
+    try:
+        return_history_page = max(1, int(request.args.get("history_page", "1")))
+    except ValueError:
+        return_history_page = 1
+    return_history_type = (request.args.get("history_type") or "all").strip().lower()
     track_id = request.args.get("track_id", "").strip() if request.method == "GET" else request.form.get("track_id", "").strip()
 
     # POST: save or delete
@@ -3031,7 +3055,17 @@ def analyst_edit():
                         "genre_names": genre_names,
                     }
 
-    return render_template("analyst_edit.html", track=track, big7=BIG7, review_mode=review_mode, is_admin=is_admin, return_history_open=return_history_open)
+    return render_template(
+        "analyst_edit.html",
+        track=track,
+        big7=BIG7,
+        review_mode=review_mode,
+        is_admin=is_admin,
+        return_history_open=return_history_open,
+        return_history_q=return_history_q,
+        return_history_page=return_history_page,
+        return_history_type=return_history_type,
+    )
 
 
 if __name__ == "__main__":
