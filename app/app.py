@@ -1974,7 +1974,7 @@ def _admin_history_fetch(cur, q=None, limit=20, offset=0, type_filter="all"):
             )
             SELECT type, id, title, status, submitted_by, reviewed_by, processed_at
             FROM hist
-            ORDER BY processed_at DESC NULLS LAST, type, id
+            ORDER BY processed_at DESC NULLS LAST, CASE type WHEN 'track' THEN 1 WHEN 'album' THEN 2 WHEN 'artist' THEN 3 END, id
             LIMIT %s OFFSET %s;
             """,
             params + [int(limit), int(offset)],
@@ -2004,7 +2004,7 @@ def _admin_history_fetch(cur, q=None, limit=20, offset=0, type_filter="all"):
             )
             SELECT type, id, title, status, submitted_by, reviewed_by, processed_at
             FROM hist
-            ORDER BY processed_at DESC NULLS LAST, type, id
+            ORDER BY processed_at DESC NULLS LAST, CASE type WHEN 'track' THEN 1 WHEN 'album' THEN 2 WHEN 'artist' THEN 3 END, id
             LIMIT %s OFFSET %s;
             """,
             params + [int(limit), int(offset)],

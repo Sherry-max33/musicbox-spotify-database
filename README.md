@@ -1,149 +1,86 @@
-🎧 MusicBox — Spotify Analytics Database & Web Application
+# 🎧 MusicBox — Spotify Analytics Database & Web Application
 
-A production-style full-stack data product that transforms raw Spotify data into an interactive analytics platform for music exploration and decision-making.
+> **A production-ready full-stack data product that transforms raw Spotify metadata into an interactive analytics platform for music exploration and data-driven business decision-making.**
 
-👉 Live Demo: https://musicbox-spotify-database.onrender.com/viewer
+👉 **Live Demo:** [https://musicbox-spotify-database.onrender.com/viewer](https://musicbox-spotify-database.onrender.com/viewer)  
+*(Note: Hosted on a free tier; the initial load may require ~30 seconds for server wake-up.)*
 
-🌟 Project Overview
+---
 
-MusicBox is an end-to-end data application that demonstrates how structured data infrastructure can power analytics experiences similar to those used by streaming platforms, music labels, and digital marketers.
+## 🌟 Project Overview
+MusicBox is an end-to-end data application demonstrating how structured data infrastructure powers analytics for streaming platforms and music labels. It features a custom ETL pipeline that cleans and ingests ~10,000 Spotify tracks from raw CSV format into a normalized PostgreSQL database. 
 
-The system integrates data engineering, database design, backend services, and a user-facing web interface into a deployable cloud application.
+The system integrates data engineering, relational modeling, and backend services into a deployable cloud application designed to simulate real-world digital product environments.
 
-It is built on top of a curated ~10K-track Spotify dataset (CSV), ingested via a custom ETL pipeline into PostgreSQL.
+---
 
-💡 Motivation
+## 🏗️ System Architecture
+**Data Source (CSV)** → **ETL Processing (Python/Pandas)** → **PostgreSQL (Supabase)** → **Flask Backend (SQL/psycopg)** → **Jinja/HTML Web UI** → **Cloud Deployment (Render + Supabase)**
 
-Modern digital products rely on robust data pipelines and analytics layers to extract insights from large-scale behavioral and content data.
+---
 
-This project was built to simulate a real-world analytics platform that enables users to:
+## 🗃️ Database Design & Metric Logic
+The relational schema is designed using database normalization principles (3NF) to support scalable analytics queries and flexible aggregations.
 
-- Explore music metadata
-- Analyze audio characteristics
-- Perform search and discovery
-- Support data-driven decisions
+### 📊 Entity-Relationship Diagram (ERD)
+![MusicBox ERD](image_demo/supabase-ERD.png)  
+*Visual representation of the normalized schema modeling Tracks, Artists, Albums, and their complex relationships.*
 
-🧠 Key Features
+### 1. Categorical Mapping (Genre Consolidation)
+* **The Challenge:** Raw Spotify genres are highly fragmented (e.g., "trap latino," "latin pop").
+* **The Solution:** Engineered a mapping pipeline that collapses 500+ granular sub-genres into a structured **"Big-8" Genre System**.
 
-🔍 Search & Exploration
+### 2. Popularity Metric Design
+* **Scoring Logic:** $Score = \sum(Popularity)$.
+* **E-commerce Analogy:** Similar to **GMV** in e-commerce, this metric reflects "Scale of Influence." `DISTINCT ON (track_id)` ensures each track is counted once per entity.
 
-- Search across tracks, artists, and albums
-- Browse artist and album detail pages
-- View rich track/album metadata and relationships
+---
 
-📊 Audio & Genre Analytics
+## 📈 Business Intelligence & Actionable Insights
+Leveraging a 10-year background in e-commerce operations, this project extracts commercial value from audio data through three core analytical lenses:
 
-- Spotify audio features (danceability, energy, valence, etc.)
-- Big‑8 genre system with decade filters and “Explore by Genres” charts
-- Top charts and trend-style views powered by aggregate SQL over popularity and time
+### 1. User Profiling & Personalization (The "Style Map")
+* **Acoustic Fingerprinting:** The Radar Chart quantifies key audio features like danceability, energy, and valence.
+* **Business Value:** This allows platforms to define "User Taste Profiles," enabling targeted high-BPM playlists to increase Click-Through Rates (CTR).
 
-👥 Role-Based Views
+### 2. Trend Forecasting & Market Intelligence (Style Evolution)
+* **Genre Mix Over Time:** Visualizes the shifts in genre popularity and audio characteristics across decades.
+* **Business Value:** By identifying "rising" genres, labels can make data-driven decisions on talent scouting.
 
-- Viewer interface for casual exploration
-- Analyst/Admin console for editing metadata and running content review workflows
-- Review queue + decision history with undo, mirroring real analytics/review tools
+### 3. Retention & Churn Prediction
+* **Audio Feature Evolution:** Tracks the temporal evolution of listening habits to support re-engagement campaigns.
 
-🎵 Media Integration
+---
 
-- Album artwork display
-- In-browser audio preview playback
+## 🛠️ Tech Stack
 
-⚡ Performance-Optimized Queries
+### Backend
+* **Python** | **Flask** | **psycopg** (PostgreSQL driver)
 
-- Normalized relational schema designed for fast lookups
-- Hand-tuned SQL joins and window functions for top charts and genre breakdowns
+### Database
+* **PostgreSQL** (Supabase)
 
-🏗️ System Architecture
+### Frontend
+* **HTML + CSS** | **Jinja** Templating | **JavaScript** (Audio Playback)
 
-Data Sources (Spotify CSV) → ETL Processing (Python/Pandas) → PostgreSQL (Supabase) → Flask Backend (SQL/psycopg) → Jinja/HTML Web UI  
-　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　　↓  
-　　　　　　　　　　　　　　　　　　　　　　　　　　　　　 Cloud Deployment (Render + Supabase)
+### Data Processing / ETL
+* **Python** (Pandas, NumPy)
 
-🗃️ Database Design
+### Deployment
+* **Render** (Gunicorn) | **Supabase** (Managed DB)
 
-Normalized relational schema modeling core music entities:
+---
 
-- Tracks
-- Artists
-- Albums
-- Audio Features
-- Track–Artist relationships
-- Track–Album relationships
-- Genre mapping tables (fine-grained → Big‑8 categories)
+## 🧠 Key Features
+* **🔍 Search & Exploration:** Cross-entity search and detailed metadata relationships.
+* **📊 Audio & Genre Analytics:** Dynamic charts with decade filters powered by aggregate SQL.
+* **👥 Role-Based Views:** Viewer interface vs. Analyst/Admin console with **Undo** functionality.
+* **⚡ Optimized Queries:** Hand-tuned SQL joins and **window functions** for real-time ranking.
 
-Designed using database normalization principles to support scalable analytics queries and flexible aggregations.
+---
 
-🛠️ Tech Stack
-
-**Backend**
-
-- Python
-- Flask
-- psycopg (PostgreSQL driver) + raw SQL queries
-
-**Database**
-
-- PostgreSQL (Supabase)
-
-**Frontend**
-
-- HTML + CSS
-- Jinja server-side templating
-- Lightweight JavaScript for interactivity and audio playback
-
-**Data Processing / ETL**
-
-- Python (Pandas, NumPy)
-- Batch ETL script that cleans and loads the Spotify CSV into PostgreSQL
-
-**Deployment**
-
-- Render (Flask app hosting with Gunicorn)
-- Supabase (managed PostgreSQL)
-
-🚀 Deployment
-
-The application is deployed as a public cloud service:
-
-- Backend hosted on Render
-- Database hosted on Supabase
-- Accessible via browser without local setup
-
-👉 Live Viewer:
-https://musicbox-spotify-database.onrender.com/viewer
-
-🎯 Use Cases
-
-MusicBox demonstrates capabilities relevant to:
-
-- Data Analytics Platforms
-- Business Intelligence Tools
-- Digital Media Analytics
-- Product Data Infrastructure
-- Data-Driven Decision Systems
-
-💼 Skills Demonstrated
-
-**Data Engineering**
-
-- Data cleaning and ingestion from CSV
-- Relational schema design for analytics
-- SQL query design and optimization
-
-**Backend Development**
-
-- Flask routing and view design
-- PostgreSQL integration via psycopg
-- JSON APIs for charting and interactive UI components
-
-**Product & UX Thinking**
-
-- Role-based interfaces (viewer vs. analyst/admin)
-- Review workflows (queues, decisions, undo)
-- Analytics-focused exploration flows (genres, decades, top charts)
-
-**Cloud Deployment**
-
-- Production-style hosting on Render (Gunicorn)
-- Managed database integration with Supabase
-- Environment-based configuration and secrets management
+## 💼 Skills Demonstrated
+* **Data Engineering:** 3NF Schema design, ETL pipeline development.
+* **Backend Development:** Flask API routing and PostgreSQL integration.
+* **Product Thinking:** Role-based workflow design and business metric definition.
+* **Cloud Deployment:** Production-grade hosting and environment secrets management.

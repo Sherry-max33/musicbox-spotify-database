@@ -259,7 +259,7 @@
     }
     .reviewGridHeader, .reviewRow{
       display:grid;
-      grid-template-columns: 1.5fr 120px 120px 90px 90px 130px minmax(160px,1fr);
+      grid-template-columns: 1.5fr 100px minmax(200px, 1.2fr) 80px 80px 120px minmax(140px,1fr);
       gap:10px;
       align-items:center;
       font-family:var(--mono);
@@ -307,6 +307,20 @@
     .tag.rejected{ border-color: rgba(255,99,132,.35); color: #ff6384; background: rgba(255,99,132,.12); }
     .tag.update{ border-color: rgba(130,197,255,.30); color: rgba(130,197,255,.95); background: rgba(130,197,255,.08); }
     .tag.analyst{ border-color: rgba(255,214,90,.35); color: rgba(255,214,90,.95); background: rgba(255,214,90,.08); }
+
+    .reviewRow .tag.reviewedByTag{
+      white-space:normal;
+      word-break:break-all;
+      overflow:visible;
+      text-overflow:clip;
+      justify-content:flex-start;
+      text-align:left;
+    }
+
+    .historyTypeSelect.select{
+      min-width:120px;
+      padding-right:32px;
+    }
 
     .openLink{
       display:inline-flex;
@@ -579,7 +593,7 @@
           <input type="hidden" name="history_open" id="historyOpenHistory" value="{{ '1' if show_history else '' }}" />
           <input class="input searchSmall" name="q_history" value="{{ q_history }}" placeholder="Item" autocomplete="off" />
           <div style="display:flex;gap:8px;align-items:center;">
-            <select name="history_type" class="select" style="min-width:110px;">
+            <select name="history_type" class="select historyTypeSelect" style="min-width:120px;padding-right:32px;">
               <option value="all"{% if history_type == 'all' %} selected{% endif %}>All types</option>
               <option value="track"{% if history_type == 'track' %} selected{% endif %}>Tracks</option>
               <option value="album"{% if history_type == 'album' %} selected{% endif %}>Albums</option>
@@ -613,7 +627,7 @@
             {% endif %}
           </div>
           <div class="tag analyst">{{ item.submitted_by }}</div>
-          <div class="tag">{{ item.reviewed_by }}</div>
+          <div class="tag reviewedByTag">{{ item.reviewed_by }}</div>
           <div><span class="tag">{{ item.type|capitalize }}</span></div>
           {% set st = (item.status or 'pending')|lower %}
           <div class="tag {{ st }}">{{ st|capitalize }}</div>
