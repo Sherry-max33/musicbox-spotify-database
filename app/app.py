@@ -1380,6 +1380,41 @@ def admin_logout():
     return redirect(url_for("admin_login"))
 
 
+def _manage_list_return_kwargs(req):
+    """Extract return_* from request (args on GET, form on POST) for redirect back to manage list with same filters."""
+    s = req.form.get if req.method == "POST" else req.args.get
+    tab = (s("return_tab") or "songs").strip()
+    if tab not in ("songs", "artists", "albums"):
+        tab = "songs"
+    status = (s("return_status") or "all").strip().lower()
+    if status not in ("all", "pending", "approved", "rejected"):
+        status = "all"
+    mine = s("return_mine") == "1"
+    q = (s("return_q") or "").strip()
+    decade = (s("return_decade") or "all").strip()
+    genre = (s("return_genre") or "all").strip()
+    try:
+        page = max(1, int(s("return_page") or "1"))
+    except ValueError:
+        page = 1
+    return {
+        "tab": tab,
+        "status": status,
+        "mine": 1 if mine else 0,
+        "q": q,
+        "decade": decade,
+        "genre": genre,
+        "page": page,
+    }
+
+
+def _from_manage_list(req):
+    """True if the request came from manage list (has return_tab in URL or form)."""
+    if req.method == "POST":
+        return bool(req.form.get("return_tab"))
+    return bool(req.args.get("return_tab"))
+
+
 @app.route("/admin/manage", methods=["GET"])
 def manage_list():
     if not session.get("admin_email"):
@@ -2638,6 +2673,7 @@ def analyst_edit_artist():
     except ValueError:
         return_history_page = 1
     return_history_type = (request.args.get("history_type") or "all").strip().lower()
+    return_list = _manage_list_return_kwargs(request)
     artist_id = request.args.get("artist_id", "").strip() if request.method == "GET" else request.form.get("artist_id", "").strip()
 
     if request.method == "POST":
@@ -2648,7 +2684,7 @@ def analyst_edit_artist():
                         cur.execute("DELETE FROM artists WHERE artist_id = %s", (artist_id,))
                         conn.commit()
                 flash("Artist deleted.")
-            return redirect(url_for("manage_list", tab="artists"))
+            return redirect(url_for("manage_list", **return_list))
         artist_name = (request.form.get("artist_name") or "").strip()
         if not artist_name:
             flash("Artist name is required.")
@@ -2684,7 +2720,7 @@ def analyst_edit_artist():
                     cur.execute("DELETE FROM artist_primary_genre WHERE artist_id = %s", (artist_id,))
                 conn.commit()
         flash("Artist saved.")
-        return redirect(url_for("analyst_edit_artist", artist_id=artist_id))
+        return redirect(url_for("manage_list", **return_list))
 
     artist = None
     artist_genres = []
@@ -2740,6 +2776,14 @@ def analyst_edit_artist():
         return_history_q=return_history_q,
         return_history_page=return_history_page,
         return_history_type=return_history_type,
+        return_list_tab=return_list["tab"],
+        return_list_status=return_list["status"],
+        return_list_mine=return_list["mine"],
+        return_list_q=return_list["q"],
+        return_list_decade=return_list["decade"],
+        return_list_genre=return_list["genre"],
+        return_list_page=return_list["page"],
+        from_manage_list=_from_manage_list(request),
     )
 
 
@@ -2754,6 +2798,7 @@ def analyst_edit_album():
     except ValueError:
         return_history_page = 1
     return_history_type = (request.args.get("history_type") or "all").strip().lower()
+    return_list = _manage_list_return_kwargs(request)
     album_id = request.args.get("album_id", "").strip() if request.method == "GET" else request.form.get("album_id", "").strip()
 
     if request.method == "POST":
@@ -2764,7 +2809,7 @@ def analyst_edit_album():
                         cur.execute("DELETE FROM albums WHERE album_id = %s", (album_id,))
                         conn.commit()
                 flash("Album deleted.")
-            return redirect(url_for("manage_list", tab="albums"))
+            return redirect(url_for("manage_list", **return_list))
         album_name = (request.form.get("album_name") or "").strip()
         if not album_name:
             flash("Album name is required.")
@@ -2811,7 +2856,7 @@ def analyst_edit_album():
                     )
                 conn.commit()
         flash("Album saved.")
-        return redirect(url_for("analyst_edit_album", album_id=album_id))
+        return redirect(url_for("manage_list", **return_list))
 
     album = None
     album_tracks = []
@@ -2899,6 +2944,14 @@ def analyst_edit_album():
         return_history_q=return_history_q,
         return_history_page=return_history_page,
         return_history_type=return_history_type,
+        return_list_tab=return_list["tab"],
+        return_list_status=return_list["status"],
+        return_list_mine=return_list["mine"],
+        return_list_q=return_list["q"],
+        return_list_decade=return_list["decade"],
+        return_list_genre=return_list["genre"],
+        return_list_page=return_list["page"],
+        from_manage_list=_from_manage_list(request),
     )
 
 @app.route("/analyst/edit", methods=["GET", "POST"])
@@ -2912,6 +2965,7 @@ def analyst_edit():
     except ValueError:
         return_history_page = 1
     return_history_type = (request.args.get("history_type") or "all").strip().lower()
+    return_list = _manage_list_return_kwargs(request)
     track_id = request.args.get("track_id", "").strip() if request.method == "GET" else request.form.get("track_id", "").strip()
 
     # POST: save or delete
@@ -2923,11 +2977,11 @@ def analyst_edit():
                         cur.execute("DELETE FROM tracks WHERE track_id = %s", (track_id,))
                         conn.commit()
                 flash("Track deleted.")
-            return redirect(url_for("manage_list", tab="songs"))
+            return redirect(url_for("manage_list", **return_list))
         # Save
         if not track_id:
             flash("No track selected to save.")
-            return redirect(url_for("manage_list", tab="songs"))
+            return redirect(url_for("manage_list", **return_list))
         track_name = request.form.get("track_name", "").strip() or None
         duration_ms = request.form.get("duration_ms", "").strip()
         duration_ms = int(duration_ms) if duration_ms.isdigit() else None
@@ -3022,6 +3076,8 @@ def analyst_edit():
                     )
                 conn.commit()
         flash("Track saved.")
+        if _from_manage_list(request):
+            return redirect(url_for("manage_list", **return_list))
         return redirect(url_for("analyst"))
 
     # GET: load track for edit or show empty (add mode)
@@ -3101,6 +3157,14 @@ def analyst_edit():
         return_history_q=return_history_q,
         return_history_page=return_history_page,
         return_history_type=return_history_type,
+        return_list_tab=return_list["tab"],
+        return_list_status=return_list["status"],
+        return_list_mine=return_list["mine"],
+        return_list_q=return_list["q"],
+        return_list_decade=return_list["decade"],
+        return_list_genre=return_list["genre"],
+        return_list_page=return_list["page"],
+        from_manage_list=_from_manage_list(request),
     )
 
 

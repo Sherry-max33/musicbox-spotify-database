@@ -402,7 +402,7 @@
               </td>
               <td class="cell-date">{{ row.last_updated or '—' }}</td>
               <td>
-                <a class="btn secondary" href="{{ url_for('analyst_edit') }}?track_id={{ row.id }}">Edit</a>
+                <a class="btn secondary" href="{{ url_for('analyst_edit', track_id=row.id, return_tab=tab, return_status=status, return_mine=1 if mine else 0, return_q=q or '', return_decade=decade, return_genre=genre, return_page=page) }}">Edit</a>
               </td>
             </tr>
             {% endfor %}
@@ -436,7 +436,7 @@
               </td>
               <td class="cell-date">{{ row.last_updated or '—' }}</td>
               <td>
-                <a class="btn secondary" href="{{ url_for('analyst_edit_artist') }}?artist_id={{ row.id }}" target="_blank" rel="noreferrer">Edit</a>
+                <a class="btn secondary" href="{{ url_for('analyst_edit_artist', artist_id=row.id, return_tab=tab, return_status=status, return_mine=1 if mine else 0, return_q=q or '', return_decade=decade, return_genre=genre, return_page=page) }}" target="_blank" rel="noreferrer">Edit</a>
               </td>
             </tr>
             {% endfor %}
@@ -476,7 +476,7 @@
               </td>
               <td class="cell-date">{{ row.last_updated or '—' }}</td>
               <td>
-                <a class="btn secondary" href="{{ url_for('analyst_edit_album') }}?album_id={{ row.id }}" target="_blank" rel="noreferrer">Edit</a>
+                <a class="btn secondary" href="{{ url_for('analyst_edit_album', album_id=row.id, return_tab=tab, return_status=status, return_mine=1 if mine else 0, return_q=q or '', return_decade=decade, return_genre=genre, return_page=page) }}" target="_blank" rel="noreferrer">Edit</a>
               </td>
             </tr>
             {% endfor %}

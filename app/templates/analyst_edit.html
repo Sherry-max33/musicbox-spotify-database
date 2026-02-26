@@ -322,16 +322,24 @@
     {% set return_history_q = return_history_q or '' %}
     {% set return_history_page = return_history_page or 1 %}
     {% set return_history_type = return_history_type or 'all' %}
+    {% set return_list_tab = return_list_tab | default('songs') %}
+    {% set return_list_status = return_list_status | default('all') %}
+    {% set return_list_mine = return_list_mine | default(0) %}
+    {% set return_list_q = return_list_q | default('') %}
+    {% set return_list_decade = return_list_decade | default('all') %}
+    {% set return_list_genre = return_list_genre | default('all') %}
+    {% set return_list_page = return_list_page | default(1) %}
+    {% set from_manage_list = from_manage_list | default(false) %}
     {% set mode = mode or 'track' %}
     {% if mode == 'artist' %}
       {% set crumb_label = 'Artist' %}
-      {% set back_url = url_for('admin', history_open='1', q_history=return_history_q, page_history=return_history_page, history_type=return_history_type, _anchor='contentReview') if (review_mode and return_history_open) else (url_for('admin') if review_mode else url_for('manage_list', tab='artists')) %}
+      {% set back_url = url_for('admin', history_open='1', q_history=return_history_q, page_history=return_history_page, history_type=return_history_type, _anchor='contentReview') if (review_mode and return_history_open) else (url_for('admin') if review_mode else (url_for('manage_list', tab=return_list_tab, status=return_list_status, mine=return_list_mine, q=return_list_q, decade=return_list_decade, genre=return_list_genre, page=return_list_page) if from_manage_list else url_for('manage_list', tab='artists'))) %}
     {% elif mode == 'album' %}
       {% set crumb_label = 'Album' %}
-      {% set back_url = url_for('admin', history_open='1', q_history=return_history_q, page_history=return_history_page, history_type=return_history_type, _anchor='contentReview') if (review_mode and return_history_open) else (url_for('admin') if review_mode else url_for('manage_list', tab='albums')) %}
+      {% set back_url = url_for('admin', history_open='1', q_history=return_history_q, page_history=return_history_page, history_type=return_history_type, _anchor='contentReview') if (review_mode and return_history_open) else (url_for('admin') if review_mode else (url_for('manage_list', tab=return_list_tab, status=return_list_status, mine=return_list_mine, q=return_list_q, decade=return_list_decade, genre=return_list_genre, page=return_list_page) if from_manage_list else url_for('manage_list', tab='albums'))) %}
     {% else %}
       {% set crumb_label = 'Tracks' %}
-      {% set back_url = url_for('admin', history_open='1', q_history=return_history_q, page_history=return_history_page, history_type=return_history_type, _anchor='contentReview') if (review_mode and return_history_open) else (url_for('admin') if review_mode else url_for('manage_list', tab='songs')) %}
+      {% set back_url = url_for('admin', history_open='1', q_history=return_history_q, page_history=return_history_page, history_type=return_history_type, _anchor='contentReview') if (review_mode and return_history_open) else (url_for('admin') if review_mode else (url_for('manage_list', tab=return_list_tab, status=return_list_status, mine=return_list_mine, q=return_list_q, decade=return_list_decade, genre=return_list_genre, page=return_list_page) if from_manage_list else url_for('manage_list', tab='songs'))) %}
     {% endif %}
     {% with messages = get_flashed_messages() %}
     {% if messages %}
@@ -368,6 +376,15 @@
         {% if mode == 'track' %}
         <form method="post" action="{{ url_for('analyst_edit') }}" id="editForm" class="{% if review_mode %}review-readonly{% endif %}"{% if review_mode %} onsubmit="return false"{% endif %}>
           <input type="hidden" name="delete" id="deleteFlag" value="0" />
+          {% if from_manage_list %}
+          <input type="hidden" name="return_tab" value="{{ return_list_tab }}" />
+          <input type="hidden" name="return_status" value="{{ return_list_status }}" />
+          <input type="hidden" name="return_mine" value="{{ return_list_mine }}" />
+          <input type="hidden" name="return_q" value="{{ return_list_q }}" />
+          <input type="hidden" name="return_decade" value="{{ return_list_decade }}" />
+          <input type="hidden" name="return_genre" value="{{ return_list_genre }}" />
+          <input type="hidden" name="return_page" value="{{ return_list_page }}" />
+          {% endif %}
           {% if track %}
           <input type="hidden" name="track_id" value="{{ track.track_id }}" />
           {% endif %}
@@ -519,6 +536,15 @@
         {% elif mode == 'artist' %}
         <form method="post" action="{{ url_for('analyst_edit_artist') }}" id="editForm" class="{% if review_mode %}review-readonly{% endif %}"{% if review_mode %} onsubmit="return false"{% endif %}>
           <input type="hidden" name="delete" id="deleteFlag" value="0" />
+          {% if from_manage_list %}
+          <input type="hidden" name="return_tab" value="{{ return_list_tab }}" />
+          <input type="hidden" name="return_status" value="{{ return_list_status }}" />
+          <input type="hidden" name="return_mine" value="{{ return_list_mine }}" />
+          <input type="hidden" name="return_q" value="{{ return_list_q }}" />
+          <input type="hidden" name="return_decade" value="{{ return_list_decade }}" />
+          <input type="hidden" name="return_genre" value="{{ return_list_genre }}" />
+          <input type="hidden" name="return_page" value="{{ return_list_page }}" />
+          {% endif %}
           <input type="hidden" name="artist_id" value="{{ artist.artist_id if artist else '' }}" />
 
           <div class="section">
@@ -613,6 +639,15 @@
         {% elif mode == 'album' %}
         <form method="post" action="{{ url_for('analyst_edit_album') }}" id="editForm" class="{% if review_mode %}review-readonly{% endif %}"{% if review_mode %} onsubmit="return false"{% endif %}>
           <input type="hidden" name="delete" id="deleteFlag" value="0" />
+          {% if from_manage_list %}
+          <input type="hidden" name="return_tab" value="{{ return_list_tab }}" />
+          <input type="hidden" name="return_status" value="{{ return_list_status }}" />
+          <input type="hidden" name="return_mine" value="{{ return_list_mine }}" />
+          <input type="hidden" name="return_q" value="{{ return_list_q }}" />
+          <input type="hidden" name="return_decade" value="{{ return_list_decade }}" />
+          <input type="hidden" name="return_genre" value="{{ return_list_genre }}" />
+          <input type="hidden" name="return_page" value="{{ return_list_page }}" />
+          {% endif %}
           <input type="hidden" name="album_id" value="{{ album.album_id if album else '' }}" />
 
           <div class="section">
