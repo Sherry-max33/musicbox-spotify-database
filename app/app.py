@@ -1862,7 +1862,7 @@ def _admin_pending_fetch(cur, q=None, limit=20, offset=0):
     ]
 
 
-def _admin_history_count(cur, q=None):
+def _admin_history_count(cur, q=None, type_filter="all"):
     q = (q or "").strip()
     params = []
     cond_track = ""
@@ -1874,21 +1874,28 @@ def _admin_history_count(cur, q=None):
         cond_album = " AND a.album_name ILIKE %s"
         cond_artist = " AND ar.artist_name ILIKE %s"
         params.extend([like, like, like])
+    type_filter = (type_filter or "all").lower()
+    include_tracks = type_filter in ("all", "track", "tracks")
+    include_albums = type_filter in ("all", "album", "albums")
+    include_artists = type_filter in ("all", "artist", "artists")
+    extra_track = "" if include_tracks else " AND 1=0"
+    extra_album = "" if include_albums else " AND 1=0"
+    extra_artist = "" if include_artists else " AND 1=0"
     try:
         cur.execute(
             f"""
             WITH hist AS (
               SELECT t.track_id AS id
               FROM tracks t
-              WHERE t.status IN ('approved','rejected'){cond_track}
+              WHERE t.status IN ('approved','rejected'){cond_track}{extra_track}
               UNION ALL
               SELECT a.album_id AS id
               FROM albums a
-              WHERE a.status IN ('approved','rejected'){cond_album}
+              WHERE a.status IN ('approved','rejected'){cond_album}{extra_album}
               UNION ALL
               SELECT ar.artist_id AS id
               FROM artists ar
-              WHERE ar.status IN ('approved','rejected'){cond_artist}
+              WHERE ar.status IN ('approved','rejected'){cond_artist}{extra_artist}
             )
             SELECT COUNT(*) FROM hist;
             """,
@@ -1903,15 +1910,15 @@ def _admin_history_count(cur, q=None):
             WITH hist AS (
               SELECT t.track_id AS id
               FROM tracks t
-              WHERE t.status IN ('approved','rejected'){cond_track}
+              WHERE t.status IN ('approved','rejected'){cond_track}{extra_track}
               UNION ALL
               SELECT a.album_id AS id
               FROM albums a
-              WHERE a.status IN ('approved','rejected'){cond_album}
+              WHERE a.status IN ('approved','rejected'){cond_album}{extra_album}
               UNION ALL
               SELECT ar.artist_id AS id
               FROM artists ar
-              WHERE ar.status IN ('approved','rejected'){cond_artist}
+              WHERE ar.status IN ('approved','rejected'){cond_artist}{extra_artist}
             )
             SELECT COUNT(*) FROM hist;
             """,
@@ -1921,7 +1928,7 @@ def _admin_history_count(cur, q=None):
         return int(row[0] or 0) if row else 0
 
 
-def _admin_history_fetch(cur, q=None, limit=20, offset=0):
+def _admin_history_fetch(cur, q=None, limit=20, offset=0, type_filter="all"):
     q = (q or "").strip()
     params = []
     cond_track = ""
@@ -1933,6 +1940,13 @@ def _admin_history_fetch(cur, q=None, limit=20, offset=0):
         cond_album = " AND a.album_name ILIKE %s"
         cond_artist = " AND ar.artist_name ILIKE %s"
         params.extend([like, like, like])
+    type_filter = (type_filter or "all").lower()
+    include_tracks = type_filter in ("all", "track", "tracks")
+    include_albums = type_filter in ("all", "album", "albums")
+    include_artists = type_filter in ("all", "artist", "artists")
+    extra_track = "" if include_tracks else " AND 1=0"
+    extra_album = "" if include_albums else " AND 1=0"
+    extra_artist = "" if include_artists else " AND 1=0"
     try:
         cur.execute(
             f"""
@@ -1942,21 +1956,21 @@ def _admin_history_fetch(cur, q=None, limit=20, offset=0):
               FROM tracks t
               LEFT JOIN users u ON u.user_id = t.submitted_by
               LEFT JOIN users ru ON ru.user_id = t.reviewed_by
-              WHERE t.status IN ('approved','rejected'){cond_track}
+              WHERE t.status IN ('approved','rejected'){cond_track}{extra_track}
               UNION ALL
               SELECT 'album'::text AS type, a.album_id AS id, a.album_name AS title, a.status,
                      u.email AS submitted_by, ru.email AS reviewed_by, a.reviewed_at AS processed_at
               FROM albums a
               LEFT JOIN users u ON u.user_id = a.submitted_by
               LEFT JOIN users ru ON ru.user_id = a.reviewed_by
-              WHERE a.status IN ('approved','rejected'){cond_album}
+              WHERE a.status IN ('approved','rejected'){cond_album}{extra_album}
               UNION ALL
               SELECT 'artist'::text AS type, ar.artist_id AS id, ar.artist_name AS title, ar.status,
                      u.email AS submitted_by, ru.email AS reviewed_by, ar.reviewed_at AS processed_at
               FROM artists ar
               LEFT JOIN users u ON u.user_id = ar.submitted_by
               LEFT JOIN users ru ON ru.user_id = ar.reviewed_by
-              WHERE ar.status IN ('approved','rejected'){cond_artist}
+              WHERE ar.status IN ('approved','rejected'){cond_artist}{extra_artist}
             )
             SELECT type, id, title, status, submitted_by, reviewed_by, processed_at
             FROM hist
@@ -1974,19 +1988,19 @@ def _admin_history_fetch(cur, q=None, limit=20, offset=0):
                      u.email AS submitted_by, NULL::text AS reviewed_by, t.added_at AS processed_at
               FROM tracks t
               LEFT JOIN users u ON u.user_id = t.submitted_by
-              WHERE t.status IN ('approved','rejected'){cond_track}
+              WHERE t.status IN ('approved','rejected'){cond_track}{extra_track}
               UNION ALL
               SELECT 'album'::text AS type, a.album_id AS id, a.album_name AS title, a.status,
                      u.email AS submitted_by, NULL::text AS reviewed_by, a.added_at AS processed_at
               FROM albums a
               LEFT JOIN users u ON u.user_id = a.submitted_by
-              WHERE a.status IN ('approved','rejected'){cond_album}
+              WHERE a.status IN ('approved','rejected'){cond_album}{extra_album}
               UNION ALL
               SELECT 'artist'::text AS type, ar.artist_id AS id, ar.artist_name AS title, ar.status,
                      u.email AS submitted_by, NULL::text AS reviewed_by, ar.added_at AS processed_at
               FROM artists ar
               LEFT JOIN users u ON u.user_id = ar.submitted_by
-              WHERE ar.status IN ('approved','rejected'){cond_artist}
+              WHERE ar.status IN ('approved','rejected'){cond_artist}{extra_artist}
             )
             SELECT type, id, title, status, submitted_by, reviewed_by, processed_at
             FROM hist
@@ -2221,6 +2235,9 @@ def admin():
     history = []
     q_pending = (request.args.get("q_pending") or "").strip()
     q_history = (request.args.get("q_history") or "").strip()
+    history_type = (request.args.get("history_type") or "all").strip().lower()
+    if history_type not in ("all", "track", "album", "artist"):
+        history_type = "all"
     try:
         page_pending = max(1, int(request.args.get("page_pending", "1")))
     except ValueError:
@@ -2242,12 +2259,12 @@ def admin():
             pending = _admin_pending_fetch(cur, q=q_pending, limit=page_size, offset=offset_pending)
 
             if show_history:
-                total_history = _admin_history_count(cur, q=q_history)
+                total_history = _admin_history_count(cur, q=q_history, type_filter=history_type)
                 last_page_history = max(1, (total_history + page_size - 1) // page_size) if total_history else 1
                 if page_history > last_page_history:
                     page_history = last_page_history
                 offset_history = (page_history - 1) * page_size
-                history = _admin_history_fetch(cur, q=q_history, limit=page_size, offset=offset_history)
+                history = _admin_history_fetch(cur, q=q_history, limit=page_size, offset=offset_history, type_filter=history_type)
             else:
                 total_history = 0
                 last_page_history = 1
@@ -2287,6 +2304,7 @@ def admin():
         q_pending=q_pending,
         q_history=q_history,
         show_history=show_history,
+        history_type=history_type,
     )
 
 

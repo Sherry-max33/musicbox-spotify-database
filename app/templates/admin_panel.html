@@ -496,10 +496,11 @@
         <form method="get" action="{{ url_for('admin', _anchor='contentReview') }}" class="searchRow">
           <input type="hidden" name="q_history" value="{{ q_history }}" />
           <input type="hidden" name="page_history" value="{{ page_history }}" />
+          <input type="hidden" name="history_type" value="{{ history_type or 'all' }}" />
           <input type="hidden" name="history_open" id="historyOpenPending" value="{{ '1' if show_history else '' }}" />
           <input class="input searchSmall" name="q_pending" value="{{ q_pending }}" placeholder="Item" autocomplete="off" />
           <button type="submit" class="btn">Search</button>
-          <a href="{{ url_for('admin', q_pending='', q_history=q_history or '', page_pending=1, page_history=page_history, history_open='1' if show_history else '', _anchor='contentReview') }}" class="btn btnNeutral" style="text-decoration:none;">Clear</a>
+          <a href="{{ url_for('admin', q_pending='', q_history=q_history or '', page_pending=1, page_history=page_history, history_open='1' if show_history else '', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral" style="text-decoration:none;">Clear</a>
         </form>
         <div class="reviewGridHeader">
           <div>Item</div>
@@ -554,13 +555,13 @@
           </div>
           <div class="page-links" style="display:flex;gap:6px;align-items:center;font-family:var(--mono);font-size:12px;">
             {% if page_pending > 1 %}
-            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending - 1, page_history=page_history, history_open='1' if show_history else '', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Prev</a>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending - 1, page_history=page_history, history_open='1' if show_history else '', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Prev</a>
             {% endif %}
             {% for p in pending_page_window %}
-            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=p, page_history=page_history, history_open='1' if show_history else '', _anchor='contentReview') }}" class="btn btnNeutral{% if p == page_pending %} btnAccent{% endif %}" style="min-width:0;padding:6px 10px;">{{ p }}</a>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=p, page_history=page_history, history_open='1' if show_history else '', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral{% if p == page_pending %} btnAccent{% endif %}" style="min-width:0;padding:6px 10px;">{{ p }}</a>
             {% endfor %}
             {% if page_pending < pending_last_page %}
-            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending + 1, page_history=page_history, history_open='1' if show_history else '', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Next</a>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending + 1, page_history=page_history, history_open='1' if show_history else '', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Next</a>
             {% endif %}
           </div>
         </div>
@@ -573,8 +574,16 @@
           <input type="hidden" name="page_pending" value="{{ page_pending }}" />
           <input type="hidden" name="history_open" id="historyOpenHistory" value="{{ '1' if show_history else '' }}" />
           <input class="input searchSmall" name="q_history" value="{{ q_history }}" placeholder="Item" autocomplete="off" />
-          <button type="submit" class="btn">Search</button>
-          <a href="{{ url_for('admin', q_pending=q_pending or '', q_history='', page_pending=page_pending, page_history=1, history_open='1', _anchor='contentReview') }}" class="btn btnNeutral" style="text-decoration:none;">Clear</a>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select name="history_type" class="select" style="min-width:110px;">
+              <option value="all"{% if history_type == 'all' %} selected{% endif %}>All types</option>
+              <option value="track"{% if history_type == 'track' %} selected{% endif %}>Tracks</option>
+              <option value="album"{% if history_type == 'album' %} selected{% endif %}>Albums</option>
+              <option value="artist"{% if history_type == 'artist' %} selected{% endif %}>Artists</option>
+            </select>
+            <button type="submit" class="btn">Search</button>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history='', page_pending=page_pending, page_history=1, history_open='1', history_type='all', _anchor='contentReview') }}" class="btn btnNeutral" style="text-decoration:none;">Clear</a>
+          </div>
         </form>
         <div class="reviewGridHeader">
           <div>Item</div>
@@ -634,13 +643,13 @@
           </div>
           <div class="page-links" style="display:flex;gap:6px;align-items:center;font-family:var(--mono);font-size:12px;">
             {% if page_history > 1 %}
-            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history - 1, history_open='1', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Prev</a>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history - 1, history_open='1', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Prev</a>
             {% endif %}
             {% for p in history_page_window %}
-            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=p, history_open='1', _anchor='contentReview') }}" class="btn btnNeutral{% if p == page_history %} btnAccent{% endif %}" style="min-width:0;padding:6px 10px;">{{ p }}</a>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=p, history_open='1', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral{% if p == page_history %} btnAccent{% endif %}" style="min-width:0;padding:6px 10px;">{{ p }}</a>
             {% endfor %}
             {% if page_history < history_last_page %}
-            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history + 1, history_open='1', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Next</a>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history + 1, history_open='1', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Next</a>
             {% endif %}
           </div>
         </div>
