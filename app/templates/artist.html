@@ -305,6 +305,14 @@
       .grid{grid-template-columns: repeat(2, minmax(0, 1fr));}
       .artist-name{font-size:34px}
       .popcell{min-width:150px}
+      .section--tracks{
+        overflow-x:auto;
+        -webkit-overflow-scrolling:touch;
+      }
+      .section--tracks .table{
+        min-width:580px;
+        display:table;
+      }
     }
   </style>
 </head>
@@ -351,7 +359,7 @@
     </div>
 
     <!-- TOP TRACKS -->
-    <div class="section">
+    <div class="section section--tracks">
       <div class="section-head">
         <div class="title">TOP TRACKS</div>
 </div>
