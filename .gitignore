@@ -9,3 +9,6 @@ venv/
 env/
 node_modules/
 *.log
+
+image_demo/music_box_demo.mp4
+image_demo/musicbox_demo2.mp4

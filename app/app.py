@@ -945,7 +945,8 @@ def track():
 @app.route("/analyst", methods=["GET"])
 def analyst():
     genre = request.args.get("genre", "").strip()
-    trend_genre = request.args.get("trend_genre", genre).strip()
+    # Keep trend filter independent from style-map genre filter.
+    trend_genre = request.args.get("trend_genre", "").strip()
     feature = request.args.get("feature", "danceability").strip()
 
     if feature not in FEATURE_TABS:
@@ -954,7 +955,7 @@ def analyst():
     if genre and genre not in BIG7:
         genre = ""
     if trend_genre and trend_genre not in BIG7:
-        trend_genre = genre
+        trend_genre = ""
 
     genres_sql = """
     SELECT genre_name
@@ -2668,6 +2669,7 @@ def analyst_edit_artist():
     review_mode = request.method == "GET" and request.args.get("review") == "1"
     return_history_open = request.args.get("history_open") == "1"
     return_history_q = request.args.get("history_q", "")
+    return_history_artist = request.args.get("history_artist", "")
     try:
         return_history_page = max(1, int(request.args.get("history_page", "1")))
     except ValueError:
@@ -2774,6 +2776,7 @@ def analyst_edit_artist():
         is_admin=is_admin,
         return_history_open=return_history_open,
         return_history_q=return_history_q,
+        return_history_artist=return_history_artist,
         return_history_page=return_history_page,
         return_history_type=return_history_type,
         return_list_tab=return_list["tab"],
@@ -2793,6 +2796,7 @@ def analyst_edit_album():
     review_mode = request.method == "GET" and request.args.get("review") == "1"
     return_history_open = request.args.get("history_open") == "1"
     return_history_q = request.args.get("history_q", "")
+    return_history_artist = request.args.get("history_artist", "")
     try:
         return_history_page = max(1, int(request.args.get("history_page", "1")))
     except ValueError:
@@ -2942,6 +2946,7 @@ def analyst_edit_album():
         is_admin=is_admin,
         return_history_open=return_history_open,
         return_history_q=return_history_q,
+        return_history_artist=return_history_artist,
         return_history_page=return_history_page,
         return_history_type=return_history_type,
         return_list_tab=return_list["tab"],
@@ -2960,6 +2965,7 @@ def analyst_edit():
     review_mode = request.method == "GET" and request.args.get("review") == "1"
     return_history_open = request.args.get("history_open") == "1"
     return_history_q = request.args.get("history_q", "")
+    return_history_artist = request.args.get("history_artist", "")
     try:
         return_history_page = max(1, int(request.args.get("history_page", "1")))
     except ValueError:
@@ -3155,6 +3161,7 @@ def analyst_edit():
         is_admin=is_admin,
         return_history_open=return_history_open,
         return_history_q=return_history_q,
+        return_history_artist=return_history_artist,
         return_history_page=return_history_page,
         return_history_type=return_history_type,
         return_list_tab=return_list["tab"],

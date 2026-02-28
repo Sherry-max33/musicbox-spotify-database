@@ -629,6 +629,7 @@
           <input type="hidden" name="page_pending" value="{{ page_pending }}" />
           <input type="hidden" name="history_open" id="historyOpenHistory" value="{{ '1' if show_history else '' }}" />
           <input class="input searchSmall" name="q_history" value="{{ q_history }}" placeholder="Item" autocomplete="off" />
+          <input class="input searchSmall" name="q_history_artist" value="{{ q_history_artist }}" placeholder="Artist" autocomplete="off" />
           <div style="display:flex;gap:8px;align-items:center;">
             <select name="history_type" class="select historyTypeSelect" style="min-width:120px;padding-right:32px;">
               <option value="all"{% if history_type == 'all' %} selected{% endif %}>All types</option>
@@ -637,7 +638,7 @@
               <option value="artist"{% if history_type == 'artist' %} selected{% endif %}>Artists</option>
             </select>
             <button type="submit" class="btn">Search</button>
-            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history='', page_pending=page_pending, page_history=1, history_open='1', history_type='all', _anchor='contentReview') }}" class="btn btnNeutral" style="text-decoration:none;">Clear</a>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history='', q_history_artist='', page_pending=page_pending, page_history=1, history_open='1', history_type='all', _anchor='contentReview') }}" class="btn btnNeutral" style="text-decoration:none;">Clear</a>
           </div>
         </form>
         <div class="reviewGridHeader">
@@ -655,11 +656,11 @@
         <div class="reviewRow">
           <div>
             {% if item.type == 'track' %}
-            <a href="{{ url_for('analyst_edit', track_id=item.id, review='1', history_open='1', history_q=q_history, history_page=page_history, history_type=history_type or 'all') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
+            <a href="{{ url_for('analyst_edit', track_id=item.id, review='1', history_open='1', history_q=q_history, history_artist=q_history_artist, history_page=page_history, history_type=history_type or 'all') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
             {% elif item.type == 'artist' %}
-            <a href="{{ url_for('analyst_edit_artist', artist_id=item.id, review='1', history_open='1', history_q=q_history, history_page=page_history, history_type=history_type or 'all') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
+            <a href="{{ url_for('analyst_edit_artist', artist_id=item.id, review='1', history_open='1', history_q=q_history, history_artist=q_history_artist, history_page=page_history, history_type=history_type or 'all') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
             {% elif item.type == 'album' %}
-            <a href="{{ url_for('analyst_edit_album', album_id=item.id, review='1', history_open='1', history_q=q_history, history_page=page_history, history_type=history_type or 'all') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
+            <a href="{{ url_for('analyst_edit_album', album_id=item.id, review='1', history_open='1', history_q=q_history, history_artist=q_history_artist, history_page=page_history, history_type=history_type or 'all') }}" class="openLink" style="text-decoration:none;">{{ item.title }}</a>
             {% else %}
             {{ item.title }}
             {% endif %}
@@ -679,11 +680,11 @@
               <button type="submit" class="btn secondary">Undo</button>
             </form>
             {% if item.type == 'track' %}
-            <a href="{{ url_for('analyst_edit', track_id=item.id, review='1', history_open='1', history_q=q_history, history_page=page_history, history_type=history_type or 'all') }}" class="btn openLink" style="text-decoration:none;">Details</a>
+            <a href="{{ url_for('analyst_edit', track_id=item.id, review='1', history_open='1', history_q=q_history, history_artist=q_history_artist, history_page=page_history, history_type=history_type or 'all') }}" class="btn openLink" style="text-decoration:none;">Details</a>
             {% elif item.type == 'artist' %}
-            <a href="{{ url_for('analyst_edit_artist', artist_id=item.id, review='1', history_open='1', history_q=q_history, history_page=page_history, history_type=history_type or 'all') }}" class="btn openLink" style="text-decoration:none;">Details</a>
+            <a href="{{ url_for('analyst_edit_artist', artist_id=item.id, review='1', history_open='1', history_q=q_history, history_artist=q_history_artist, history_page=page_history, history_type=history_type or 'all') }}" class="btn openLink" style="text-decoration:none;">Details</a>
             {% elif item.type == 'album' %}
-            <a href="{{ url_for('analyst_edit_album', album_id=item.id, review='1', history_open='1', history_q=q_history, history_page=page_history, history_type=history_type or 'all') }}" class="btn openLink" style="text-decoration:none;">Details</a>
+            <a href="{{ url_for('analyst_edit_album', album_id=item.id, review='1', history_open='1', history_q=q_history, history_artist=q_history_artist, history_page=page_history, history_type=history_type or 'all') }}" class="btn openLink" style="text-decoration:none;">Details</a>
             {% endif %}
           </div>
         </div>
@@ -700,13 +701,13 @@
           </div>
           <div class="page-links" style="display:flex;gap:6px;align-items:center;font-family:var(--mono);font-size:12px;">
             {% if page_history > 1 %}
-            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history - 1, history_open='1', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Prev</a>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', q_history_artist=q_history_artist or '', page_pending=page_pending, page_history=page_history - 1, history_open='1', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Prev</a>
             {% endif %}
             {% for p in history_page_window %}
-            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=p, history_open='1', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral{% if p == page_history %} btnAccent{% endif %}" style="min-width:0;padding:6px 10px;">{{ p }}</a>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', q_history_artist=q_history_artist or '', page_pending=page_pending, page_history=p, history_open='1', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral{% if p == page_history %} btnAccent{% endif %}" style="min-width:0;padding:6px 10px;">{{ p }}</a>
             {% endfor %}
             {% if page_history < history_last_page %}
-            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', page_pending=page_pending, page_history=page_history + 1, history_open='1', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Next</a>
+            <a href="{{ url_for('admin', q_pending=q_pending or '', q_history=q_history or '', q_history_artist=q_history_artist or '', page_pending=page_pending, page_history=page_history + 1, history_open='1', history_type=history_type or 'all', _anchor='contentReview') }}" class="btn btnNeutral" style="min-width:0;padding:6px 10px;">Next</a>
             {% endif %}
           </div>
         </div>

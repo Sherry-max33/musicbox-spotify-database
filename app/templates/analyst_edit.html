@@ -329,6 +329,7 @@
     {% set is_admin = is_admin or False %}
     {% set return_history_open = return_history_open or False %}
     {% set return_history_q = return_history_q or '' %}
+    {% set return_history_artist = return_history_artist or '' %}
     {% set return_history_page = return_history_page or 1 %}
     {% set return_history_type = return_history_type or 'all' %}
     {% set return_list_tab = return_list_tab | default('songs') %}
@@ -342,13 +343,13 @@
     {% set mode = mode or 'track' %}
     {% if mode == 'artist' %}
       {% set crumb_label = 'Artist' %}
-      {% set back_url = url_for('admin', history_open='1', q_history=return_history_q, page_history=return_history_page, history_type=return_history_type, _anchor='contentReview') if (review_mode and return_history_open) else (url_for('admin') if review_mode else (url_for('manage_list', tab=return_list_tab, status=return_list_status, mine=return_list_mine, q=return_list_q, decade=return_list_decade, genre=return_list_genre, page=return_list_page) if from_manage_list else url_for('manage_list', tab='artists'))) %}
+      {% set back_url = url_for('admin', history_open='1', q_history=return_history_q, q_history_artist=return_history_artist, page_history=return_history_page, history_type=return_history_type, _anchor='contentReview') if (review_mode and return_history_open) else (url_for('admin') if review_mode else (url_for('manage_list', tab=return_list_tab, status=return_list_status, mine=return_list_mine, q=return_list_q, decade=return_list_decade, genre=return_list_genre, page=return_list_page) if from_manage_list else url_for('manage_list', tab='artists'))) %}
     {% elif mode == 'album' %}
       {% set crumb_label = 'Album' %}
-      {% set back_url = url_for('admin', history_open='1', q_history=return_history_q, page_history=return_history_page, history_type=return_history_type, _anchor='contentReview') if (review_mode and return_history_open) else (url_for('admin') if review_mode else (url_for('manage_list', tab=return_list_tab, status=return_list_status, mine=return_list_mine, q=return_list_q, decade=return_list_decade, genre=return_list_genre, page=return_list_page) if from_manage_list else url_for('manage_list', tab='albums'))) %}
+      {% set back_url = url_for('admin', history_open='1', q_history=return_history_q, q_history_artist=return_history_artist, page_history=return_history_page, history_type=return_history_type, _anchor='contentReview') if (review_mode and return_history_open) else (url_for('admin') if review_mode else (url_for('manage_list', tab=return_list_tab, status=return_list_status, mine=return_list_mine, q=return_list_q, decade=return_list_decade, genre=return_list_genre, page=return_list_page) if from_manage_list else url_for('manage_list', tab='albums'))) %}
     {% else %}
       {% set crumb_label = 'Tracks' %}
-      {% set back_url = url_for('admin', history_open='1', q_history=return_history_q, page_history=return_history_page, history_type=return_history_type, _anchor='contentReview') if (review_mode and return_history_open) else (url_for('admin') if review_mode else (url_for('manage_list', tab=return_list_tab, status=return_list_status, mine=return_list_mine, q=return_list_q, decade=return_list_decade, genre=return_list_genre, page=return_list_page) if from_manage_list else url_for('manage_list', tab='songs'))) %}
+      {% set back_url = url_for('admin', history_open='1', q_history=return_history_q, q_history_artist=return_history_artist, page_history=return_history_page, history_type=return_history_type, _anchor='contentReview') if (review_mode and return_history_open) else (url_for('admin') if review_mode else (url_for('manage_list', tab=return_list_tab, status=return_list_status, mine=return_list_mine, q=return_list_q, decade=return_list_decade, genre=return_list_genre, page=return_list_page) if from_manage_list else url_for('manage_list', tab='songs'))) %}
     {% endif %}
     {% with messages = get_flashed_messages() %}
     {% if messages %}
