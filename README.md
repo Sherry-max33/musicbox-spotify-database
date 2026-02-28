@@ -3,7 +3,8 @@
 > **A production-ready full-stack data product that transforms raw Spotify metadata into an interactive analytics platform for music exploration, trend discovery, data-driven decision support.**
 
 🎥 **Demo Video: (2-minute walkthrough)**
-[Watch the demo](https://youtu.be/i5fJ1I15D9o)
+[![Watch the demo](https://img.youtube.com/vi/i5fJ1I15D9o/maxresdefault.jpg)]
+(https://youtu.be/i5fJ1I15D9o)
 
 👉 **Live Demo:** [https://musicbox-spotify-database.onrender.com/viewer](https://musicbox-spotify-database.onrender.com/viewer)  
 *(Note: Hosted on a free tier; the initial load may require ~30 seconds for server wake-up.)*
@@ -40,21 +41,21 @@ By integrating data engineering, relational modeling, backend services, cloud de
 
 <table>
   <tr>
-    <td align="center" width="50%">
+    <td valign="top" width="50%">
       <b>1) Top Charts + Genre Exploration (Viewer)</b><br/>
       <img src="image_demo/viewer_screenshot.png" alt="Top Charts Viewer" width="100%"/>
     </td>
-    <td align="center" width="50%">
+    <td valign="top" width="50%">
       <b>2) Artist Detail Page (Top Tracks + Albums)</b><br/>
       <img src="image_demo/artist_detail_screenshot.png" alt="Artist Detail" width="100%"/>
     </td>
   </tr>
   <tr>
-    <td align="center" width="50%">
+    <td valign="top" width="50%">
       <b>3) Analytics Dashboard — Style Map + Trends</b><br/>
       <img src="image_demo/analysis_screenshot.png" alt="Analytics Dashboard" width="100%"/>
     </td>
-    <td align="center" width="50%">
+    <td valign="top" width="50%">
       <b>4) Admin Console — User Management + Content Review</b><br/>
       <img src="image_demo/management_screenshot.png" alt="Admin Console" width="100%"/>
     </td>
