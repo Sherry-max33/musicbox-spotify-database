@@ -2,12 +2,13 @@
 
 > **A production-ready full-stack data product that transforms raw Spotify metadata into an interactive analytics platform for music exploration, trend discovery, data-driven decision support.**
 
-🎥 **Demo Video: (2-minute walkthrough)**
-[Watch the demo](https://youtu.be/i5fJ1I15D9o)
+🎥 <b>Demo Video (2-minute walkthrough):</b>
+<a href="https://youtu.be/i5fJ1I15D9o" target="_blank" rel="noopener noreferrer">
+Watch the demo
+</a>
 
-👉 **Live Demo:** [https://musicbox-spotify-database.onrender.com/viewer](https://musicbox-spotify-database.onrender.com/viewer)  
-*(Note: Hosted on a free tier; the initial load may require ~30 seconds for server wake-up.)*
-
+👉 <b>Live Demo:</b> <a href="https://musicbox-spotify-database.onrender.com/viewer" target="_blank" rel="noopener noreferrer">Open in new tab</a><br>
+<em>(Note: Hosted on a free tier; the initial load may require ~30 seconds for server wake-up.)</em>
 ---
 
 ## 🌟 Project Overview
