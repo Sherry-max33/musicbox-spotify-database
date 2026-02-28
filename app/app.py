@@ -1812,8 +1812,9 @@ def _admin_users(cur):
     ]
 
 
-def _admin_pending_count(cur, q=None):
+def _admin_pending_count(cur, q=None, q_artist=None):
     q = (q or "").strip()
+    q_artist = (q_artist or "").strip()
     params = []
     cond_track = ""
     cond_album = ""
@@ -1824,6 +1825,12 @@ def _admin_pending_count(cur, q=None):
         cond_album = " AND a.album_name ILIKE %s"
         cond_artist = " AND ar.artist_name ILIKE %s"
         params.extend([like, like, like])
+    if q_artist:
+        like_artist = "%" + q_artist + "%"
+        cond_track += " AND EXISTS (SELECT 1 FROM track_artist ta JOIN artists ar2 ON ar2.artist_id = ta.artist_id WHERE ta.track_id = t.track_id AND ar2.artist_name ILIKE %s)"
+        cond_album += " AND EXISTS (SELECT 1 FROM album_tracks at JOIN track_artist ta ON at.track_id = ta.track_id JOIN artists ar2 ON ar2.artist_id = ta.artist_id WHERE at.album_id = a.album_id AND ar2.artist_name ILIKE %s)"
+        cond_artist += " AND ar.artist_name ILIKE %s"
+        params.extend([like_artist, like_artist, like_artist])
     cur.execute(
         f"""
         WITH pending AS (
@@ -1847,8 +1854,9 @@ def _admin_pending_count(cur, q=None):
     return int(row[0] or 0) if row else 0
 
 
-def _admin_pending_fetch(cur, q=None, limit=20, offset=0):
+def _admin_pending_fetch(cur, q=None, q_artist=None, limit=20, offset=0):
     q = (q or "").strip()
+    q_artist = (q_artist or "").strip()
     params = []
     cond_track = ""
     cond_album = ""
@@ -1859,6 +1867,12 @@ def _admin_pending_fetch(cur, q=None, limit=20, offset=0):
         cond_album = " AND a.album_name ILIKE %s"
         cond_artist = " AND ar.artist_name ILIKE %s"
         params.extend([like, like, like])
+    if q_artist:
+        like_artist = "%" + q_artist + "%"
+        cond_track += " AND EXISTS (SELECT 1 FROM track_artist ta JOIN artists ar2 ON ar2.artist_id = ta.artist_id WHERE ta.track_id = t.track_id AND ar2.artist_name ILIKE %s)"
+        cond_album += " AND EXISTS (SELECT 1 FROM album_tracks at JOIN track_artist ta ON at.track_id = ta.track_id JOIN artists ar2 ON ar2.artist_id = ta.artist_id WHERE at.album_id = a.album_id AND ar2.artist_name ILIKE %s)"
+        cond_artist += " AND ar.artist_name ILIKE %s"
+        params.extend([like_artist, like_artist, like_artist])
     cur.execute(
         f"""
         WITH pending AS (
@@ -2304,6 +2318,7 @@ def admin():
     pending = []
     history = []
     q_pending = (request.args.get("q_pending") or "").strip()
+    q_pending_artist = (request.args.get("q_pending_artist") or "").strip()
     q_history = (request.args.get("q_history") or "").strip()
     q_history_artist = (request.args.get("q_history_artist") or "").strip()
     history_type = (request.args.get("history_type") or "all").strip().lower()
@@ -2322,12 +2337,12 @@ def admin():
     with get_conn() as conn:
         with conn.cursor() as cur:
             users = _admin_users(cur)
-            total_pending = _admin_pending_count(cur, q=q_pending)
+            total_pending = _admin_pending_count(cur, q=q_pending, q_artist=q_pending_artist or None)
             last_page_pending = max(1, (total_pending + page_size - 1) // page_size) if total_pending else 1
             if page_pending > last_page_pending:
                 page_pending = last_page_pending
             offset_pending = (page_pending - 1) * page_size
-            pending = _admin_pending_fetch(cur, q=q_pending, limit=page_size, offset=offset_pending)
+            pending = _admin_pending_fetch(cur, q=q_pending, q_artist=q_pending_artist or None, limit=page_size, offset=offset_pending)
 
             if show_history:
                 total_history = _admin_history_count(cur, q=q_history, q_artist=q_history_artist or None, type_filter=history_type)
@@ -2373,6 +2388,7 @@ def admin():
         history_page_window=history_page_window,
         page_size=page_size,
         q_pending=q_pending,
+        q_pending_artist=q_pending_artist,
         q_history=q_history,
         q_history_artist=q_history_artist,
         show_history=show_history,
