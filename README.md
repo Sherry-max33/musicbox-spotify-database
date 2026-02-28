@@ -11,11 +11,11 @@
 ---
 
 ## 🌟 Project Overview
-MusicBox is an end-to-end analytics data product that demonstrates how structured data infrastructure powers analytics for streaming platforms and music labels. It enables exploration of music trends, audio characteristics, and popularity patterns to support data-driven content strategy, recommendation systems, and market decisions.
+MusicBox is an **end-to-end analytics data product** that demonstrates how structured data infrastructure powers analytics for streaming platforms and music labels. It enables exploration of music trends, audio characteristics, and popularity patterns to support data-driven content strategy, recommendation systems, and market decisions.
 
-The platform features a custom ETL pipeline that cleans and ingests ~10,000 Spotify tracks from raw CSV (Spotify Web API data, 1950–present) files into a fully normalized PostgreSQL database. On top of this data foundation, the system provides an interactive web interface for querying, analyzing, and managing music data across different user roles.
+The platform features a **custom ETL pipeline** that cleans and ingests ~10,000 Spotify tracks from raw CSV (Spotify Web API data, 1950–present) into a fully normalized **PostgreSQL database**. On top of this data foundation, the system provides an interactive **web interface** for querying, analyzing, and managing music data across different user roles.
 
-By integrating data engineering, relational modeling, backend services, cloud deployment, and a role-based frontend, MusicBox simulates a real-world analytics platform used to transform raw data into actionable insights.
+By integrating **data engineering**, **relational modeling**, **backend services**, **cloud deployment**, and a **role-based frontend**, MusicBox simulates a real-world analytics platform used to transform raw data into actionable insights.
 
 ---
 
