@@ -1815,7 +1815,9 @@ def _admin_users(cur):
 def _admin_pending_count(cur, q=None, q_artist=None):
     q = (q or "").strip()
     q_artist = (q_artist or "").strip()
-    params = []
+    params_track = []
+    params_album = []
+    params_artist = []
     cond_track = ""
     cond_album = ""
     cond_artist = ""
@@ -1824,13 +1826,18 @@ def _admin_pending_count(cur, q=None, q_artist=None):
         cond_track = " AND t.track_name ILIKE %s"
         cond_album = " AND a.album_name ILIKE %s"
         cond_artist = " AND ar.artist_name ILIKE %s"
-        params.extend([like, like, like])
+        params_track.append(like)
+        params_album.append(like)
+        params_artist.append(like)
     if q_artist:
         like_artist = "%" + q_artist + "%"
         cond_track += " AND EXISTS (SELECT 1 FROM track_artist ta JOIN artists ar2 ON ar2.artist_id = ta.artist_id WHERE ta.track_id = t.track_id AND ar2.artist_name ILIKE %s)"
         cond_album += " AND EXISTS (SELECT 1 FROM album_tracks at JOIN track_artist ta ON at.track_id = ta.track_id JOIN artists ar2 ON ar2.artist_id = ta.artist_id WHERE at.album_id = a.album_id AND ar2.artist_name ILIKE %s)"
         cond_artist += " AND ar.artist_name ILIKE %s"
-        params.extend([like_artist, like_artist, like_artist])
+        params_track.append(like_artist)
+        params_album.append(like_artist)
+        params_artist.append(like_artist)
+    params = params_track + params_album + params_artist
     cur.execute(
         f"""
         WITH pending AS (
@@ -1857,7 +1864,9 @@ def _admin_pending_count(cur, q=None, q_artist=None):
 def _admin_pending_fetch(cur, q=None, q_artist=None, limit=20, offset=0):
     q = (q or "").strip()
     q_artist = (q_artist or "").strip()
-    params = []
+    params_track = []
+    params_album = []
+    params_artist = []
     cond_track = ""
     cond_album = ""
     cond_artist = ""
@@ -1866,13 +1875,18 @@ def _admin_pending_fetch(cur, q=None, q_artist=None, limit=20, offset=0):
         cond_track = " AND t.track_name ILIKE %s"
         cond_album = " AND a.album_name ILIKE %s"
         cond_artist = " AND ar.artist_name ILIKE %s"
-        params.extend([like, like, like])
+        params_track.append(like)
+        params_album.append(like)
+        params_artist.append(like)
     if q_artist:
         like_artist = "%" + q_artist + "%"
         cond_track += " AND EXISTS (SELECT 1 FROM track_artist ta JOIN artists ar2 ON ar2.artist_id = ta.artist_id WHERE ta.track_id = t.track_id AND ar2.artist_name ILIKE %s)"
         cond_album += " AND EXISTS (SELECT 1 FROM album_tracks at JOIN track_artist ta ON at.track_id = ta.track_id JOIN artists ar2 ON ar2.artist_id = ta.artist_id WHERE at.album_id = a.album_id AND ar2.artist_name ILIKE %s)"
         cond_artist += " AND ar.artist_name ILIKE %s"
-        params.extend([like_artist, like_artist, like_artist])
+        params_track.append(like_artist)
+        params_album.append(like_artist)
+        params_artist.append(like_artist)
+    params = params_track + params_album + params_artist
     cur.execute(
         f"""
         WITH pending AS (
@@ -1922,7 +1936,9 @@ def _admin_pending_fetch(cur, q=None, q_artist=None, limit=20, offset=0):
 def _admin_history_count(cur, q=None, q_artist=None, type_filter="all"):
     q = (q or "").strip()
     q_artist = (q_artist or "").strip()
-    params = []
+    params_track = []
+    params_album = []
+    params_artist = []
     cond_track = ""
     cond_album = ""
     cond_artist = ""
@@ -1931,13 +1947,18 @@ def _admin_history_count(cur, q=None, q_artist=None, type_filter="all"):
         cond_track = " AND t.track_name ILIKE %s"
         cond_album = " AND a.album_name ILIKE %s"
         cond_artist = " AND ar.artist_name ILIKE %s"
-        params.extend([like, like, like])
+        params_track.append(like)
+        params_album.append(like)
+        params_artist.append(like)
     if q_artist:
         like_artist = "%" + q_artist + "%"
         cond_track += " AND EXISTS (SELECT 1 FROM track_artist ta JOIN artists ar2 ON ar2.artist_id = ta.artist_id WHERE ta.track_id = t.track_id AND ar2.artist_name ILIKE %s)"
         cond_album += " AND EXISTS (SELECT 1 FROM album_tracks at JOIN track_artist ta ON at.track_id = ta.track_id JOIN artists ar2 ON ar2.artist_id = ta.artist_id WHERE at.album_id = a.album_id AND ar2.artist_name ILIKE %s)"
         cond_artist += " AND ar.artist_name ILIKE %s"
-        params.extend([like_artist, like_artist, like_artist])
+        params_track.append(like_artist)
+        params_album.append(like_artist)
+        params_artist.append(like_artist)
+    params = params_track + params_album + params_artist
     type_filter = (type_filter or "all").lower()
     include_tracks = type_filter in ("all", "track", "tracks")
     include_albums = type_filter in ("all", "album", "albums")
@@ -1995,7 +2016,9 @@ def _admin_history_count(cur, q=None, q_artist=None, type_filter="all"):
 def _admin_history_fetch(cur, q=None, q_artist=None, limit=20, offset=0, type_filter="all"):
     q = (q or "").strip()
     q_artist = (q_artist or "").strip()
-    params = []
+    params_track = []
+    params_album = []
+    params_artist = []
     cond_track = ""
     cond_album = ""
     cond_artist = ""
@@ -2004,13 +2027,18 @@ def _admin_history_fetch(cur, q=None, q_artist=None, limit=20, offset=0, type_fi
         cond_track = " AND t.track_name ILIKE %s"
         cond_album = " AND a.album_name ILIKE %s"
         cond_artist = " AND ar.artist_name ILIKE %s"
-        params.extend([like, like, like])
+        params_track.append(like)
+        params_album.append(like)
+        params_artist.append(like)
     if q_artist:
         like_artist = "%" + q_artist + "%"
         cond_track += " AND EXISTS (SELECT 1 FROM track_artist ta JOIN artists ar2 ON ar2.artist_id = ta.artist_id WHERE ta.track_id = t.track_id AND ar2.artist_name ILIKE %s)"
         cond_album += " AND EXISTS (SELECT 1 FROM album_tracks at JOIN track_artist ta ON at.track_id = ta.track_id JOIN artists ar2 ON ar2.artist_id = ta.artist_id WHERE at.album_id = a.album_id AND ar2.artist_name ILIKE %s)"
         cond_artist += " AND ar.artist_name ILIKE %s"
-        params.extend([like_artist, like_artist, like_artist])
+        params_track.append(like_artist)
+        params_album.append(like_artist)
+        params_artist.append(like_artist)
+    params = params_track + params_album + params_artist
     type_filter = (type_filter or "all").lower()
     include_tracks = type_filter in ("all", "track", "tracks")
     include_albums = type_filter in ("all", "album", "albums")
@@ -2686,6 +2714,12 @@ def analyst_edit_artist():
     return_history_open = request.args.get("history_open") == "1"
     return_history_q = request.args.get("history_q", "")
     return_history_artist = request.args.get("history_artist", "")
+    return_pending_q = request.args.get("pending_q", "")
+    return_pending_artist = request.args.get("pending_artist", "")
+    try:
+        return_pending_page = max(1, int(request.args.get("pending_page", "1")))
+    except ValueError:
+        return_pending_page = 1
     try:
         return_history_page = max(1, int(request.args.get("history_page", "1")))
     except ValueError:
@@ -2795,6 +2829,9 @@ def analyst_edit_artist():
         return_history_artist=return_history_artist,
         return_history_page=return_history_page,
         return_history_type=return_history_type,
+        return_pending_q=return_pending_q,
+        return_pending_artist=return_pending_artist,
+        return_pending_page=return_pending_page,
         return_list_tab=return_list["tab"],
         return_list_status=return_list["status"],
         return_list_mine=return_list["mine"],
@@ -2813,6 +2850,12 @@ def analyst_edit_album():
     return_history_open = request.args.get("history_open") == "1"
     return_history_q = request.args.get("history_q", "")
     return_history_artist = request.args.get("history_artist", "")
+    return_pending_q = request.args.get("pending_q", "")
+    return_pending_artist = request.args.get("pending_artist", "")
+    try:
+        return_pending_page = max(1, int(request.args.get("pending_page", "1")))
+    except ValueError:
+        return_pending_page = 1
     try:
         return_history_page = max(1, int(request.args.get("history_page", "1")))
     except ValueError:
@@ -2965,6 +3008,9 @@ def analyst_edit_album():
         return_history_artist=return_history_artist,
         return_history_page=return_history_page,
         return_history_type=return_history_type,
+        return_pending_q=return_pending_q,
+        return_pending_artist=return_pending_artist,
+        return_pending_page=return_pending_page,
         return_list_tab=return_list["tab"],
         return_list_status=return_list["status"],
         return_list_mine=return_list["mine"],
@@ -2982,6 +3028,12 @@ def analyst_edit():
     return_history_open = request.args.get("history_open") == "1"
     return_history_q = request.args.get("history_q", "")
     return_history_artist = request.args.get("history_artist", "")
+    return_pending_q = request.args.get("pending_q", "")
+    return_pending_artist = request.args.get("pending_artist", "")
+    try:
+        return_pending_page = max(1, int(request.args.get("pending_page", "1")))
+    except ValueError:
+        return_pending_page = 1
     try:
         return_history_page = max(1, int(request.args.get("history_page", "1")))
     except ValueError:
@@ -3180,6 +3232,9 @@ def analyst_edit():
         return_history_artist=return_history_artist,
         return_history_page=return_history_page,
         return_history_type=return_history_type,
+        return_pending_q=return_pending_q,
+        return_pending_artist=return_pending_artist,
+        return_pending_page=return_pending_page,
         return_list_tab=return_list["tab"],
         return_list_status=return_list["status"],
         return_list_mine=return_list["mine"],
