@@ -32,6 +32,7 @@ import os
 import uuid
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 import psycopg
+from psycopg_pool import ConnectionPool
 from dotenv import load_dotenv
 import requests
 
@@ -48,23 +49,61 @@ load_dotenv()
 # =========================
 # DB connection
 # =========================
-def get_conn():
-    # Prefer a single DATABASE_URL if present (Render / Supabase style),
-    # otherwise fall back to individual DB_* pieces (local / custom).
+_db_pool = None
+
+
+def _db_connect_kwargs():
+    # Prefer a single DATABASE_URL in production (Render/Supabase),
+    # otherwise use local DB_* settings.
     url = os.getenv("DATABASE_URL")
+    connect_timeout = int(os.getenv("DB_CONNECT_TIMEOUT", "5"))
     if url:
-        return psycopg.connect(url)
-    return psycopg.connect(
-        host=os.getenv("DB_HOST") or "localhost",
-        port=int(os.getenv("DB_PORT") or 5432),
-        dbname=os.getenv("DB_NAME") or "musicbox",
-        user=os.getenv("DB_USER") or os.getenv("USER"),
-        password=os.getenv("DB_PASSWORD") or None,
-        sslmode=os.getenv("DB_SSLMODE") or None,
-    )
+        return {"conninfo": url, "connect_timeout": connect_timeout}
+    return {
+        "host": os.getenv("DB_HOST") or "localhost",
+        "port": int(os.getenv("DB_PORT") or 5432),
+        "dbname": os.getenv("DB_NAME") or "musicbox",
+        "user": os.getenv("DB_USER") or os.getenv("USER"),
+        "password": os.getenv("DB_PASSWORD") or None,
+        "sslmode": os.getenv("DB_SSLMODE") or None,
+        "connect_timeout": connect_timeout,
+    }
+
+
+def get_conn():
+    """
+    Return a pooled DB connection context manager.
+    Existing callers already use: `with get_conn() as conn: ...`
+    """
+    global _db_pool
+    if _db_pool is None:
+        cfg = _db_connect_kwargs()
+        min_size = int(os.getenv("DB_POOL_MIN_SIZE", "0"))
+        max_size = int(os.getenv("DB_POOL_MAX_SIZE", "5"))
+        if "conninfo" in cfg:
+            conninfo = cfg.pop("conninfo")
+            _db_pool = ConnectionPool(
+                conninfo=conninfo,
+                min_size=min_size,
+                max_size=max_size,
+                kwargs=cfg,
+            )
+        else:
+            _db_pool = ConnectionPool(
+                min_size=min_size,
+                max_size=max_size,
+                kwargs=cfg,
+            )
+    return _db_pool.connection()
 
 app = Flask(__name__)
 app.secret_key = "dev-secret"
+
+
+@app.get("/healthz")
+def healthz():
+    # Fast health endpoint for Render health checks.
+    return "ok", 200
 
 # Big-8 categories (same as ETL GENRE_GROUPS; includes Country)
 BIG7 = ["Pop", "Rock", "Hip-Hop", "R&B", "Jazz", "Classical", "Electronic", "Country"]
@@ -3247,4 +3286,5 @@ def analyst_edit():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5001)
+    port = int(os.environ.get("PORT", 5001))
+    app.run(host="0.0.0.0", port=port, debug=True)
