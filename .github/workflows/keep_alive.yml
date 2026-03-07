@@ -1,0 +1,14 @@
+name: Keep MusicBox Awake
+
+on:
+  schedule:
+    # Runs every 14 minutes to prevent Render's 15-min spin-down
+    - cron: "*/14 * * * *"
+  workflow_dispatch: # Allows manual triggering from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Site
+        run: curl -s https://musicbox-spotify-database.onrender.com/healthz
