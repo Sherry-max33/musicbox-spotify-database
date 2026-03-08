@@ -36,14 +36,6 @@ from psycopg_pool import ConnectionPool
 from dotenv import load_dotenv
 import requests
 
-try:
-    import cv2
-    import numpy as np
-    _FACE_DETECT_AVAILABLE = True
-except Exception:
-    cv2 = np = None
-    _FACE_DETECT_AVAILABLE = False
-
 load_dotenv()
 
 # =========================
@@ -125,45 +117,6 @@ def fetchone_dict(cur, columns):
     if not row:
         return None
     return {columns[i]: row[i] for i in range(len(columns))}
-
-
-# Artist page hero background: compute background-position from face position in album art (cached by URL)
-_hero_focus_cache = {}
-
-
-def get_face_focus(image_url, timeout=4):
-    """Detect face in album image and return CSS background-position percentages so the face stays in view. Returns None if no face or on failure."""
-    if not _FACE_DETECT_AVAILABLE or not image_url or not image_url.startswith("http"):
-        return None
-    if image_url in _hero_focus_cache:
-        return _hero_focus_cache[image_url]
-    try:
-        r = requests.get(image_url, timeout=timeout)
-        r.raise_for_status()
-        arr = np.frombuffer(r.content, dtype=np.uint8)
-        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-        if img is None:
-            _hero_focus_cache[image_url] = None
-            return None
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        cascade_path = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-        face_cascade = cv2.CascadeClassifier(cascade_path)
-        faces = face_cascade.detectMultiScale(
-            gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)
-        )
-        if len(faces) == 0:
-            _hero_focus_cache[image_url] = None
-            return None
-        x, y, w, h = max(faces, key=lambda r: r[2] * r[3])
-        cx = (x + w / 2) / img.shape[1]
-        cy = (y + h / 2) / img.shape[0]
-        # Map face center to viewport relative position for consistent cropping
-        out = f"{cx*100:.1f}% {cy*100:.1f}%"
-        _hero_focus_cache[image_url] = out
-        return out
-    except Exception:
-        _hero_focus_cache[image_url] = None
-        return None
 
 
 # =========================
@@ -2696,8 +2649,7 @@ def artist():
 
             # Artist page hero: use latest album cover (albums already ordered by release_date DESC)
             hero_cover = (albums[0]["album_image_url"] if albums else None) or (tracks[0]["album_image_url"] if tracks else None)
-            # Auto face detection so face lies in hero crop; fallback to centered if none or failure
-            hero_focus = get_face_focus(hero_cover) if hero_cover else None
+            hero_focus = None  # Hero always uses CSS center; face-detection removed to keep startup light
 
     return render_template(
         "artist.html",
