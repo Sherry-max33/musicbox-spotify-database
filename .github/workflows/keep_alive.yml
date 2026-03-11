@@ -2,8 +2,8 @@ name: Keep MusicBox Awake
 
 on:
   schedule:
-    # Runs every 14 minutes to prevent Render's 15-min spin-down
-    - cron: "*/14 * * * *"
+    # Runs every 5 minutes to keep the free Render instance warm (15-min idle timeout)
+    - cron: "*/5 * * * *"
   workflow_dispatch: # Allows manual triggering from the Actions tab
 
 jobs:
