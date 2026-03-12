@@ -39,6 +39,9 @@
       background:rgba(18,18,18,.78);
       backdrop-filter: blur(10px);
       box-shadow: var(--shadow);
+      position:sticky;
+      top:0;
+      z-index:40;
     }
     .logo{
       display:flex;align-items:center;gap:10px;min-width:180px;
@@ -69,7 +72,7 @@
     }
     .search-wrap-global{position:relative;flex:1;display:flex;}
     .search-wrap-global .search{flex:1;}
-    .global-suggest{position:absolute;left:0;right:0;top:100%;margin:4px 0 0;padding:0;background:rgba(28,28,28,.98);border:1px solid var(--border);border-radius:14px;max-height:320px;overflow-y:auto;z-index:20;box-shadow:0 8px 24px rgba(0,0,0,.4);}
+    .global-suggest{position:absolute;left:0;right:0;top:100%;margin:4px 0 0;padding:0;background:rgba(28,28,28,.98);border:1px solid var(--border);border-radius:14px;max-height:320px;overflow-y:auto;z-index:60;box-shadow:0 8px 24px rgba(0,0,0,.4);}
     .global-suggest .sect{padding:8px 0 4px;border-bottom:1px solid rgba(255,255,255,.06);}
     .global-suggest .sect:last-child{border-bottom:0;}
     .global-suggest .sect-title{font-size:11px;letter-spacing:1px;color:var(--muted);font-family:var(--mono);padding:4px 18px 6px;}
@@ -321,7 +324,9 @@
     <!-- Top bar -->
     <div class="topbar">
       <div class="logo">
-        <div class="logo-badge">♪</div>
+        <a href="{{ url_for('admin_login') }}" style="text-decoration:none;">
+          <div class="logo-badge">♪</div>
+        </a>
         <div>
           <div style="font-size:14px;line-height:1">MusicBox</div>
           <div class="slogan">Discover your sound.</div>
