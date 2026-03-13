@@ -1,0 +1,21 @@
+# Keep Docker build context small and clean
+.git
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# Editor / IDE
+.vscode/
+.idea/
+.cursor/
+
+# Local data / cache / demo assets
+image_demo/
+demo/
+
